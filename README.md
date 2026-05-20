@@ -5,15 +5,15 @@ Compact a [DuckDB](https://duckdb.org) database by rebuilding it into a fresh fi
 ## ⚡ Quick Start
 
 ```bash
-uv run --project chunkhound-index-compactor chunkhound-index-compactor path/to/db.duckdb
+uvx chunkhound-index-compactor path/to/db.duckdb
 # writes path/to/db.duckdb.compacted
 
-uv run --project chunkhound-index-compactor chunkhound-index-compactor path/to/db.duckdb --replace
+uvx chunkhound-index-compactor path/to/db.duckdb --replace
 # swaps in the compacted copy and keeps the original at path/to/db.duckdb.bak
 
-uv run --project chunkhound-index-compactor chunkhound-index-compactor path/to/db.duckdb --skip-hnsw
+uvx chunkhound-index-compactor path/to/db.duckdb --skip-hnsw
 # skips rebuilding vector indexes (RAM-flat, smallest output); restore them later
-uv run --project chunkhound-index-compactor chunkhound-index-compactor restore path/to/db.duckdb.compacted
+uvx chunkhound-index-compactor restore path/to/db.duckdb.compacted
 ```
 
 The source is opened read-only, but an active writer holds the file lock. Close any process writing to the database before running.
