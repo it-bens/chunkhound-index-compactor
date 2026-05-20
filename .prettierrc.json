@@ -1,0 +1,7 @@
+{
+  "printWidth": 100,
+  "proseWrap": "preserve",
+  "tabWidth": 2,
+  "trailingComma": "all",
+  "endOfLine": "lf"
+}

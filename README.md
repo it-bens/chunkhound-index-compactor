@@ -86,19 +86,7 @@ See [docs/architecture.md](docs/architecture.md#not-supported-and-why) for the r
 
 ## 🏗️ Development
 
-```bash
-cd chunkhound-index-compactor
-uv sync --extra dev
-```
-
-From the repo root:
-
-```bash
-uv run pytest
-uv run ruff check src/ tests/
-uv run ruff format --check src/ tests/
-uv run mypy src/
-```
+Setup, local checks, CI, and release process: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## ⚖️ License
 

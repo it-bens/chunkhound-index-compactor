@@ -1,0 +1,12 @@
+{
+  "name": "chunkhound-index-compactor-devtools",
+  "private": true,
+  "description": "Local dev tooling (prettier). Not published. Not a runtime dep.",
+  "scripts": {
+    "format": "prettier --check .",
+    "format:fix": "prettier --write ."
+  },
+  "devDependencies": {
+    "prettier": "3.8.3"
+  }
+}

@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+src/
+tests/
+
+# Markdown is hand-formatted. Prettier mangles identifiers containing
+# underscores (treats them as emphasis) and pads tables past printWidth.
+**/*.md
+
+uv.lock
+package-lock.json
+LICENSE

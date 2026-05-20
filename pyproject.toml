@@ -16,6 +16,7 @@ dev = [
     "pytest>=9.0",
     "pytest-cov>=7.0",
     "ruff>=0.15",
+    "typos>=1.46",
 ]
 
 [project.scripts]
@@ -27,6 +28,9 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/chunkhound_index_compactor"]
+
+[tool.hatch.build.targets.sdist]
+exclude = ["tests/", "docs/", ".github/", ".claude/**"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

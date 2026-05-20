@@ -1,0 +1,13 @@
+[files]
+extend-exclude = [
+  "tests/fixtures/",
+  "dist/",
+  "node_modules/",
+  "uv.lock",
+  "package-lock.json",
+  "CHANGELOG.md",
+]
+
+[default.extend-words]
+# "unparseable" is a valid English variant; we use it in test names.
+unparseable = "unparseable"

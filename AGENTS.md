@@ -66,16 +66,8 @@ chunkhound-index-compactor/
 
 ## Build / verify
 
-```bash
-uv sync --extra dev
-uv run pytest
-uv run ruff check src/ tests/
-uv run ruff format --check src/ tests/
-uv run mypy src/
-```
-
-Strict ruff (`E W F I B C4 UP ARG SIM PTH`, line 100, `E501` ignored). Strict mypy (`tests.*` relaxed; `duckdb`, `duckdb_extension_vss` ignored for missing imports). pytest discovers `tests/`.
+- Setup, local-check commands, tooling configs, CI workflow details, and release process at `CONTRIBUTING.md` §Setup, §Local checks, §CI workflows, §Release process.
 
 ## Runtime deps
 
-`duckdb>=1.4.0,<1.5.3.dev0` (range matches `chunkhound` to stay file-format-compatible), `duckdb-extension-vss>=1.5.2` (pins `duckdb==1.5.2` transitively), `typer>=0.25`. Dev: `mypy>=2.1`, `pytest>=9.0`, `pytest-cov>=7.0`, `ruff>=0.15`. Python `>=3.10,<3.14`.
+- Authoritative constraints at `pyproject.toml`. Load-bearing context: `duckdb` range matches `chunkhound` to stay file-format-compatible; `duckdb-extension-vss>=1.5.2` pins `duckdb==1.5.2` transitively. Python `>=3.10,<3.14`.
