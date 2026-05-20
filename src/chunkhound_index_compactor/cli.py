@@ -76,26 +76,34 @@ def compact(
 
     try:
         result = compact_database(source, target, skip_hnsw=skip_hnsw)
-    except (FileExistsError, FileNotFoundError, ValueError) as e:
+    except (FileExistsError, FileNotFoundError, ValueError, RuntimeError) as e:
         typer.echo(f"error: {e}", err=True)
         raise typer.Exit(code=1) from e
 
     typer.echo(
         f"done:      {result.target} ({human_size(result.target_size)}, {result.delta_pct:+.1f}%)"
     )
-    if skip_hnsw:
-        typer.echo(
-            "note:      vector indexes were skipped; run "
-            f"`chunkhound-index-compactor restore {result.target}` before accelerated search works."
-        )
 
+    final_path = result.target
     if replace:
         try:
             backup = replace_with_compacted(result.source, result.target)
-        except (FileExistsError, FileNotFoundError) as e:
+        except (FileExistsError, FileNotFoundError, OSError) as e:
             typer.echo(f"error: {e}", err=True)
             raise typer.Exit(code=1) from e
         typer.echo(f"replaced:  {result.source} (backup at {backup})")
+        final_path = result.source
+
+    if skip_hnsw:
+        typer.echo(
+            "note:      vector indexes were skipped; run "
+            f"`chunkhound-index-compactor restore {final_path}` before accelerated search works."
+        )
+        if replace:
+            typer.echo(
+                f"warning:   {final_path} now has no vector index; semantic search will run "
+                "brute-force until `restore` rebuilds the HNSW."
+            )
 
 
 @app.command()
@@ -113,7 +121,7 @@ def restore(
     """
     try:
         result = restore_indexes(database)
-    except (FileNotFoundError, ValueError) as e:
+    except (FileNotFoundError, ValueError, RuntimeError) as e:
         typer.echo(f"error: {e}", err=True)
         raise typer.Exit(code=1) from e
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import duckdb
+import pytest
 from typer.testing import CliRunner
 
 from chunkhound_index_compactor.cli import app
@@ -119,3 +120,87 @@ def test_cli_restore_without_recipe_exits_nonzero(populated_db: Path) -> None:
     result = runner.invoke(app, ["restore", str(populated_db)])
     assert result.exit_code == 1
     assert "recipe" in result.output
+
+
+def test_cli_compact_surfaces_missing_vss_extension_cleanly(
+    hnsw_db: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A missing bundled vss binary surfaces as RuntimeError from
+    # _bundled_extension_path. The CLI must turn that into a clean `error:`
+    # line, not a stack trace.
+    from chunkhound_index_compactor import core
+
+    def fake(_ext: str) -> Path:
+        raise RuntimeError("bundled vss missing for test")
+
+    monkeypatch.setattr(core, "_bundled_extension_path", fake)
+
+    target = tmp_path / "out.duckdb"
+    result = runner.invoke(app, [str(hnsw_db), str(target)])
+    assert result.exit_code == 1
+    assert "error:" in result.output
+    assert "bundled vss missing for test" in result.output
+
+
+def test_cli_restore_surfaces_missing_vss_extension_cleanly(
+    hnsw_db: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Build a --skip-hnsw artifact first (bundled vss is needed to read the
+    # source's metric), then break vss lookup for the restore call only.
+    target = tmp_path / "out.duckdb"
+    skip = runner.invoke(app, [str(hnsw_db), str(target), "--skip-hnsw"])
+    assert skip.exit_code == 0, skip.output
+
+    from chunkhound_index_compactor import core
+
+    def fake(_ext: str) -> Path:
+        raise RuntimeError("bundled vss missing for restore test")
+
+    monkeypatch.setattr(core, "_bundled_extension_path", fake)
+
+    result = runner.invoke(app, ["restore", str(target)])
+    assert result.exit_code == 1
+    assert "error:" in result.output
+    assert "bundled vss missing for restore test" in result.output
+
+
+def test_cli_replace_skip_hnsw_note_points_at_source_path(hnsw_db: Path) -> None:
+    # After --replace, the .compacted artifact is renamed onto the source
+    # path. A note that still references <source>.compacted points the user at
+    # a file that no longer exists.
+    result = runner.invoke(app, [str(hnsw_db), "--replace", "--skip-hnsw"])
+    assert result.exit_code == 0, result.output
+
+    compacted_path = str(hnsw_db) + ".compacted"
+    assert f"restore {hnsw_db}" in result.output
+    assert f"restore {compacted_path}" not in result.output
+
+
+def test_cli_replace_skip_hnsw_warns_in_place_db_has_no_vector_index(
+    hnsw_db: Path,
+) -> None:
+    # --replace + --skip-hnsw leaves the in-place file with no vector index
+    # until `restore` runs against it. That regression needs to be loud.
+    result = runner.invoke(app, [str(hnsw_db), "--replace", "--skip-hnsw"])
+    assert result.exit_code == 0, result.output
+    assert "warning:" in result.output.lower()
+    assert "no vector index" in result.output.lower()
+
+
+def test_cli_replace_handles_os_error_cleanly(
+    populated_db: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A cross-device or filesystem-level failure in replace_with_compacted
+    # surfaces as OSError. The CLI must print a clean `error:` line, not a
+    # stack trace.
+    from chunkhound_index_compactor import cli as cli_mod
+
+    def boom(_source: Path, _target: Path) -> Path:
+        raise OSError("simulated cross-device replace failure")
+
+    monkeypatch.setattr(cli_mod, "replace_with_compacted", boom)
+
+    result = runner.invoke(app, [str(populated_db), "--replace"])
+    assert result.exit_code == 1
+    assert "error:" in result.output
+    assert "simulated cross-device replace failure" in result.output
