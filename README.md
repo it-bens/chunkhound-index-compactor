@@ -2,8 +2,6 @@
 
 Compact a [DuckDB](https://duckdb.org) database by rebuilding it into a fresh file. The motivating use case was shrinking a bloated [ChunkHound](https://github.com/chunkhound/chunkhound) index (whose per-batch HNSW re-serialization leaves large amounts of orphaned-but-counted blocks), but the implementation is fully generic; it works on any single-schema DuckDB file.
 
-For the architecture (why a custom rebuild instead of `COPY FROM DATABASE`, the step-by-step pipeline, the HNSW recipe table, and the bundled `vss` extension), see [docs/architecture.md](docs/architecture.md). For empirical numbers on the motivating ChunkHound workload (1.25 TB on disk), see [docs/benchmarks.md](docs/benchmarks.md). For approaches that were considered and deliberately not pursued, see [docs/out-of-scope.md](docs/out-of-scope.md).
-
 ## ⚡ Quick Start
 
 ```bash
@@ -45,7 +43,7 @@ chunkhound-index-compactor restore DATABASE
 | `--replace`       | After success, replace source with the compacted file (original → `<source>.bak`) |
 | `--skip-hnsw`     | Do not rebuild vector indexes; write a recipe table for later `restore`           |
 
-With `--skip-hnsw`, the output has no vector index and falls back to a brute-force scan (correct, just unaccelerated) until you run `restore`. Rebuilding an HNSW dominates peak memory: as a rule of thumb on the motivating workload, full-rebuild peak lands around 3 to 4 times the source HNSW's `pragma_hnsw_index_info().approx_memory_usage`. `--skip-hnsw` keeps the rebuild peak flat at the streaming-copy cost (a few GiB) regardless of source HNSW size, so you can compact on a small machine and rebuild on a RAM-capable one. See [docs/benchmarks.md](docs/benchmarks.md) for concrete numbers and [docs/architecture.md §RAM cost asymmetry](docs/architecture.md#ram-cost-asymmetry) for why.
+With `--skip-hnsw`, the output has no vector index and falls back to a brute-force scan (correct, just unaccelerated) until you run `restore`. Rebuilding the HNSW is the memory-dominant step, so `--skip-hnsw` lets you compact on a small machine and `restore` on a RAM-capable one. See [docs/benchmarks.md](docs/benchmarks.md) for peak-RAM numbers and [docs/architecture.md §RAM cost asymmetry](docs/architecture.md#ram-cost-asymmetry) for why.
 
 ## 🐍 Library Usage
 
@@ -84,7 +82,7 @@ The tool fails hard rather than silently dropping anything it cannot reproduce:
 - Foreign-key cycles among tables (raise `ValueError`).
 - HNSW tuning parameters other than `metric` (`M`, `M0`, `ef_construction`, `ef_search`); they are not recoverable from a built index and are rebuilt at the `vss` defaults.
 
-See [docs/architecture.md](docs/architecture.md#not-supported-and-why) for the reasoning.
+See [docs/architecture.md](docs/architecture.md#not-supported-and-why) for the reasoning, and [docs/out-of-scope.md](docs/out-of-scope.md) for approaches considered and not pursued.
 
 ## 🏗️ Development
 
@@ -111,7 +109,7 @@ MIT
 > [!NOTE]
 > Yes, an AI wrote this README. And the code, the docs, the tests, and
 > the `.claude/skills` it now uses to write the next round. Yes, a human
-> told it to keep the emojis. The human has ADHD, which — as it turns
-> out — means his brain was already doing attention re-routing and
+> told it to keep the emojis. The human has ADHD, which, as it turns
+> out, means his brain was already doing attention re-routing and
 > context-window thrashing before LLMs made it cool. They call him ...
 > LLMartin. The emojis are a feature.

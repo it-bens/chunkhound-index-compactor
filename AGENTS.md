@@ -1,6 +1,6 @@
 # AGENTS.md (chunkhound-index-compactor)
 
-Operational navigation for LLM coding agents. Human-facing docs: `README.md`, `docs/architecture.md`, `docs/benchmarks.md`, `docs/out-of-scope.md`. Do not duplicate them here.
+Operational navigation for LLM coding agents. Human docs: `README.md`, `docs/architecture.md`, `docs/benchmarks.md`, `docs/out-of-scope.md`.
 
 ## Layout
 
@@ -59,16 +59,9 @@ chunkhound-index-compactor/
 
 ## Invariants enforced by code
 
-- `target.resolve() == source.resolve()` → `ValueError`
-- `source` missing → `FileNotFoundError`
-- `target` exists pre-run → `FileExistsError`
-- non-`main` schema in source → `ValueError` (detected via `duckdb_tables()` filtered on `schema_name`, not the `internal` flag; `duckdb_schemas()` marks the source's `main` as `internal = true`)
-- view in source → `ValueError`
-- FK cycle → `ValueError` from `_topological_order()`
-- `BaseException` after `dst` attach → unlink `target`, re-raise
-- `restore_indexes` without `_compactor_hnsw_recipe` → `ValueError`
-- `replace_with_compacted` when `<source>.bak` exists → `FileExistsError`
 - HNSW metric must survive rebuild. Catalog DDL strips `WITH (...)`, so the metric is read from `pragma_hnsw_index_info()` in `_capture_hnsw_recipes`. (architecture.md §ChunkHound compatibility)
+- SQL DDL is built by string interpolation (no parameter binding); escape literals via `_escape_sql_literal`, wrap table and index names in double quotes. (architecture.md §Compaction pipeline)
+- Public-API exceptions (`ValueError`, `FileNotFoundError`, `FileExistsError`) enumerated at README §Library Usage; refused inputs reasoned at architecture.md §Not supported (and why).
 - Reading the source never loads its HNSW into RAM; building the destination HNSW dominates peak RAM. `--skip-hnsw` is the small-RAM unlock; `restore` is a separate-machine step. (architecture.md §RAM cost asymmetry)
 
 ## Build / verify
@@ -86,10 +79,3 @@ Strict ruff (`E W F I B C4 UP ARG SIM PTH`, line 100, `E501` ignored). Strict my
 ## Runtime deps
 
 `duckdb>=1.4.0,<1.5.3.dev0` (range matches `chunkhound` to stay file-format-compatible), `duckdb-extension-vss>=1.5.2` (pins `duckdb==1.5.2` transitively), `typer>=0.25`. Dev: `mypy>=2.1`, `pytest>=9.0`, `pytest-cov>=7.0`, `ruff>=0.15`. Python `>=3.10,<3.14`.
-
-## SQL construction notes
-
-- DuckDB DDL does not accept parameter binding; literals built by string interpolation
-- single quotes doubled via `_escape_sql_literal()`
-- table / index names wrapped in double quotes
-- `vss` loaded only when source contains an HNSW index, via `LOAD '<path>'` against `duckdb_extension_vss` package bundle (no `INSTALL`, no network)

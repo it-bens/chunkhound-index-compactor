@@ -38,7 +38,7 @@ Reading the source never loads its HNSW into RAM. `LOAD 'vss'` is needed for `pr
 
 Building the destination HNSW is what dominates peak RAM. The `vss` HNSW must fit fully in memory at build time, and on top of that vss allocates working memory proportional to `M`, `M0`, and `ef_construction`. As a rule of thumb on the motivating workload, peak RAM for a full rebuild lands around 3 to 4 times the source HNSW's `pragma_hnsw_index_info().approx_memory_usage`.
 
-That asymmetry is what makes `--skip-hnsw` a real small-RAM unlock and `restore` a separate-machine step rather than a stylistic choice. Skipping the HNSW build keeps the rebuild flat at the streaming-copy peak (a few GiB) regardless of source HNSW size. `restore` reproduces the full-rebuild peak on a RAM-capable machine later. Concrete numbers are in [benchmarks.md](benchmarks.md).
+That asymmetry is what makes `--skip-hnsw` a small-RAM unlock and `restore` a separate-machine step. Skipping the HNSW build keeps the rebuild flat at the streaming-copy peak (a few GiB) regardless of source HNSW size. `restore` reproduces the full-rebuild peak on a RAM-capable machine later. Concrete numbers are in [benchmarks.md](benchmarks.md).
 
 ## The `_compactor_hnsw_recipe` table
 
