@@ -2,13 +2,34 @@
 name = "chunkhound-index-compactor"
 version = "0.1.0"
 description = "Compact a DuckDB database (ChunkHound index or otherwise) by rebuilding it into a fresh file"
+readme = "README.md"
 requires-python = ">=3.10,<3.14"
 license = "MIT"
+authors = [{ name = "Martin Bens", email = "martin.bens@it-bens.de" }]
+keywords = ["duckdb", "chunkhound", "compact", "hnsw", "vector-index", "database"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Database",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 dependencies = [
     "duckdb>=1.4.0,<1.5.3.dev0",
     "duckdb-extension-vss>=1.5.2",
     "typer>=0.25",
 ]
+
+[project.urls]
+Homepage = "https://github.com/it-bens/chunkhound-index-compactor"
+Repository = "https://github.com/it-bens/chunkhound-index-compactor"
+Issues = "https://github.com/it-bens/chunkhound-index-compactor/issues"
+Changelog = "https://github.com/it-bens/chunkhound-index-compactor/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = [
