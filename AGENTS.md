@@ -1,15 +1,21 @@
-# AGENTS.md (chunkhound-index-compactor)
+# AGENTS.md
 
-Operational navigation for LLM coding agents. Human docs: `README.md`, `docs/architecture.md`, `docs/benchmarks.md`, `docs/out-of-scope.md`.
+Operational navigation for LLM coding agents. Human docs: `README.md`, `docs/architecture.md`, `docs/benchmarks.md`, `docs/out-of-scope.md`, `CONTRIBUTING.md`.
 
 ## Layout
 
 ```
 chunkhound-index-compactor/
 ├── pyproject.toml
+├── package.json                  # prettier dev dep (Node)
+├── .prettierrc.json
+├── .prettierignore
+├── .typos.toml
+├── .github/workflows/            # ci.yml, rolling.yml, release.yml
 ├── README.md
 ├── AGENTS.md
 ├── CLAUDE.md                     # @AGENTS.md
+├── CONTRIBUTING.md               # dev tooling, CI, release process
 ├── CHANGELOG.md
 ├── LICENSE
 ├── docs/

@@ -1,0 +1,55 @@
+name: Rolling release
+
+# Recreates the "rolling" GitHub Release with the latest wheel after CI
+# passes on main. Marked prerelease + not-latest so it never shadows a real
+# tagged release.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+concurrency:
+  group: rolling
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: rebuild rolling release
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+
+      - name: build
+        run: uv build
+
+      - name: delete existing rolling tag and release
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete rolling --cleanup-tag --yes --repo "${{ github.repository }}" || true
+
+      - name: create rolling release
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
+        with:
+          tag_name: rolling
+          name: "Rolling (main)"
+          target_commitish: ${{ github.event.workflow_run.head_sha }}
+          prerelease: true
+          make_latest: "false"
+          body: "Built from main @ ${{ github.event.workflow_run.head_sha }}"
+          files: |
+            dist/*.whl
+            dist/*.tar.gz
