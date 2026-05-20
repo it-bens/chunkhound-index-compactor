@@ -21,6 +21,8 @@ import duckdb
 _HNSW_RE = re.compile(r"USING\s+HNSW", re.IGNORECASE)
 _HNSW_COLUMN_RE = re.compile(r"USING\s+HNSW\s*\(\s*(.+?)\s*\)", re.IGNORECASE)
 _FK_REFERENCES_RE = re.compile(r"FOREIGN\s+KEY\s*\([^)]*\)\s*REFERENCES\s+(\w+)", re.IGNORECASE)
+_GENERATED_COLUMN_RE = re.compile(r"\bGENERATED\s+ALWAYS\b", re.IGNORECASE)
+_BARE_IDENTIFIER_RE = re.compile(r'^(?:[A-Za-z_]\w*|"(?:[^"]|"")+")$')
 
 # Name of the table `--skip-hnsw` writes into the output so `restore_indexes`
 # can rebuild the stripped vector indexes. ChunkHound ignores the extra table.
@@ -67,11 +69,14 @@ def _topological_order(table_ddls: dict[str, str]) -> list[str]:
 
 
 def _reject_unsupported_objects(conn: duckdb.DuckDBPyConnection) -> None:
-    """Fail hard if the attached `src` has non-main schemas or any view.
+    """Fail hard at the front gate for source shapes we cannot faithfully rebuild.
 
     `duckdb_schemas()` marks the source's own `main` as `internal = true`, so
-    detect non-main objects via the tables/views catalogs filtered on
+    non-main objects are detected via the tables/views catalogs filtered on
     `schema_name`, not on the `internal` flag.
+
+    Each refusal converts a downstream silent-loss or opaque-crash path
+    (verified on DuckDB 1.5.2) into a clear pre-target error.
     """
     non_main = conn.execute(
         "SELECT schema_name, table_name FROM duckdb_tables() "
@@ -87,6 +92,45 @@ def _reject_unsupported_objects(conn: duckdb.DuckDBPyConnection) -> None:
     if views:
         names = ", ".join(v for (v,) in views)
         raise ValueError(f"source contains views (out of scope): {names}")
+
+    # User-defined types: `duckdb_tables().sql` inlines ENUM/STRUCT/alias
+    # definitions, so without refusing here the user's `CREATE TYPE` is dropped
+    # silently and any downstream `value::<type>` cast against the rebuilt DB
+    # fails with "type does not exist".
+    user_types = conn.execute(
+        "SELECT type_name FROM duckdb_types() WHERE database_name = 'src' AND NOT internal"
+    ).fetchall()
+    if user_types:
+        names = ", ".join(t for (t,) in user_types)
+        raise ValueError(f"source contains user-defined types (out of scope): {names}")
+
+    # Generated columns: `duckdb_tables().sql` emits the virtual column in the
+    # column list, but DuckDB rejects it as a target for `INSERT ... SELECT *`,
+    # so the rebuild crashes opaquely at the per-table insert.
+    table_rows: list[tuple[str, str]] = conn.execute(
+        "SELECT table_name, sql FROM duckdb_tables() WHERE database_name = 'src'"
+    ).fetchall()
+    generated = [name for name, sql in table_rows if _GENERATED_COLUMN_RE.search(sql)]
+    if generated:
+        raise ValueError(
+            f"source contains tables with generated columns (out of scope): {', '.join(generated)}"
+        )
+
+    # Self-referential FKs: `duckdb_tables().sql` drops the FK clause and leaves
+    # a trailing comma in the column list, so on older DuckDB versions the
+    # rebuild crashes at `CREATE TABLE`, and on lenient versions the FK is
+    # silently lost. Either way it's an unsupported shape.
+    self_ref = conn.execute(
+        "SELECT DISTINCT table_name FROM duckdb_constraints() "
+        "WHERE database_name = 'src' "
+        "AND constraint_type = 'FOREIGN KEY' "
+        "AND table_name = referenced_table"
+    ).fetchall()
+    if self_ref:
+        names = ", ".join(t for (t,) in self_ref)
+        raise ValueError(
+            f"source contains tables with self-referential foreign keys (out of scope): {names}"
+        )
 
 
 @dataclass(frozen=True)
@@ -186,7 +230,8 @@ def compact_database(source: Path, target: Path, *, skip_hnsw: bool = False) -> 
 
         conn.execute("SET preserve_insertion_order = false")
         for name in order:
-            conn.execute(f'INSERT INTO "{name}" SELECT * FROM src."{name}"')
+            quoted = _quote_identifier(name)
+            conn.execute(f"INSERT INTO {quoted} SELECT * FROM src.{quoted}")
 
         for sql in plain_index_ddls:
             conn.execute(sql)
@@ -198,7 +243,7 @@ def compact_database(source: Path, target: Path, *, skip_hnsw: bool = False) -> 
                 conn.execute("SET hnsw_enable_experimental_persistence = true")
                 for name, table, column, metric in recipes:
                     conn.execute(
-                        f'CREATE INDEX "{name}" ON "{table}" '
+                        f"CREATE INDEX {_quote_identifier(name)} ON {_quote_identifier(table)} "
                         f"USING HNSW ({column}) WITH (metric = '{_escape_sql_literal(metric)}')"
                     )
 
@@ -240,7 +285,17 @@ def _capture_hnsw_recipes(
         match = _HNSW_COLUMN_RE.search(sql)
         if not match:
             raise ValueError(f"could not parse HNSW column from index DDL: {sql!r}")
-        recipes.append((name, table, match.group(1), metrics[name]))
+        column = match.group(1)
+        # vss accepts expression keys (e.g. `CAST(col AS FLOAT[N])`), but
+        # `_HNSW_COLUMN_RE` is non-greedy and truncates the captured group at
+        # the first inner `)`. Refusing non-bare columns here keeps the recipe
+        # round-trip honest and turns the deferred restore-time DDL crash into
+        # a clear pre-target error.
+        if not _BARE_IDENTIFIER_RE.match(column):
+            raise ValueError(
+                f"HNSW index '{name}' is on a non-column expression (out of scope): {column!r}"
+            )
+        recipes.append((name, table, column, metrics[name]))
     return recipes
 
 
@@ -248,11 +303,12 @@ def _write_recipe_table(
     conn: duckdb.DuckDBPyConnection, recipes: list[tuple[str, str, str, str]]
 ) -> None:
     """Write the `_compactor_hnsw_recipe` table so `restore_indexes` can rebuild."""
+    quoted = _quote_identifier(RECIPE_TABLE)
     conn.execute(
-        f'CREATE TABLE "{RECIPE_TABLE}" '
+        f"CREATE TABLE {quoted} "
         "(index_name VARCHAR, table_name VARCHAR, column_name VARCHAR, metric VARCHAR)"
     )
-    conn.executemany(f'INSERT INTO "{RECIPE_TABLE}" VALUES (?, ?, ?, ?)', recipes)
+    conn.executemany(f"INSERT INTO {quoted} VALUES (?, ?, ?, ?)", recipes)
 
 
 def restore_indexes(database: Path) -> RestoreResult:
@@ -281,7 +337,8 @@ def restore_indexes(database: Path) -> RestoreResult:
             raise ValueError(f"no {RECIPE_TABLE} table found: not a --skip-hnsw artifact")
 
         recipes = conn.execute(
-            f'SELECT index_name, table_name, column_name, metric FROM "{RECIPE_TABLE}"'
+            f"SELECT index_name, table_name, column_name, metric "
+            f"FROM {_quote_identifier(RECIPE_TABLE)}"
         ).fetchall()
         existing = {
             name for (name,) in conn.execute("SELECT index_name FROM duckdb_indexes()").fetchall()
@@ -295,7 +352,7 @@ def restore_indexes(database: Path) -> RestoreResult:
             if name in existing:
                 continue
             conn.execute(
-                f'CREATE INDEX "{name}" ON "{table}" '
+                f"CREATE INDEX {_quote_identifier(name)} ON {_quote_identifier(table)} "
                 f"USING HNSW ({column}) WITH (metric = '{_escape_sql_literal(metric)}')"
             )
             restored.append(name)
@@ -366,3 +423,8 @@ def human_size(num_bytes: float) -> str:
 
 def _escape_sql_literal(value: str) -> str:
     return value.replace("'", "''")
+
+
+def _quote_identifier(name: str) -> str:
+    """Wrap `name` in double quotes, doubling any embedded `"`."""
+    return '"' + name.replace('"', '""') + '"'

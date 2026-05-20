@@ -201,6 +201,89 @@ def test_compact_rejects_views(tmp_path: Path) -> None:
     assert not target.exists()
 
 
+def test_compact_rejects_user_defined_types(tmp_path: Path) -> None:
+    # vss inlines ENUM in the rebuilt DDL; without refusing here, the user's
+    # CREATE TYPE is silently dropped and downstream queries that cast to the
+    # type ('x'::color) break.
+    src = tmp_path / "types.duckdb"
+    conn = duckdb.connect(str(src))
+    try:
+        conn.execute("CREATE TYPE color AS ENUM ('r', 'g', 'b')")
+        conn.execute("CREATE TABLE t (id INTEGER, c color)")
+        conn.execute("CHECKPOINT")
+    finally:
+        conn.close()
+
+    target = tmp_path / "out.duckdb"
+    with pytest.raises(ValueError, match="user-defined type"):
+        compact_database(src, target)
+    assert not target.exists()
+
+
+def test_compact_rejects_generated_columns(tmp_path: Path) -> None:
+    # Generated columns crash the INSERT step opaquely today (the rebuild emits
+    # an explicit column list including the virtual column). Refuse at the gate.
+    src = tmp_path / "gen.duckdb"
+    conn = duckdb.connect(str(src))
+    try:
+        conn.execute("CREATE TABLE g (id INTEGER, doubled INTEGER GENERATED ALWAYS AS (id * 2))")
+        conn.execute("CHECKPOINT")
+    finally:
+        conn.close()
+
+    target = tmp_path / "out.duckdb"
+    with pytest.raises(ValueError, match="generated column"):
+        compact_database(src, target)
+    assert not target.exists()
+
+
+def test_compact_rejects_self_referential_fk(tmp_path: Path) -> None:
+    # duckdb_tables().sql emits invalid DDL for self-ref FK (drops the FK clause
+    # and leaves a trailing comma); today this crashes the rebuild at CREATE
+    # TABLE with an opaque parser error. Refuse at the gate.
+    src = tmp_path / "selfref.duckdb"
+    conn = duckdb.connect(str(src))
+    try:
+        conn.execute(
+            "CREATE TABLE node (id INTEGER PRIMARY KEY, parent INTEGER, "
+            "FOREIGN KEY (parent) REFERENCES node(id))"
+        )
+        conn.execute("CHECKPOINT")
+    finally:
+        conn.close()
+
+    target = tmp_path / "out.duckdb"
+    with pytest.raises(ValueError, match="self-referential foreign key"):
+        compact_database(src, target)
+    assert not target.exists()
+
+
+def test_compact_rejects_expression_hnsw_column(tmp_path: Path) -> None:
+    # _HNSW_COLUMN_RE truncates an expression key at the first inner ')'.
+    # Without refusing, --skip-hnsw records a malformed column string and
+    # `restore` later crashes on the unbalanced DDL.
+    src = tmp_path / "expr-hnsw.duckdb"
+    vss_path = _bundled_extension_path("vss")
+    conn = duckdb.connect(str(src))
+    try:
+        conn.execute(f"LOAD '{vss_path}'")
+        conn.execute("SET hnsw_enable_experimental_persistence = true")
+        conn.execute("CREATE TABLE v (id INTEGER, raw FLOAT[4])")
+        conn.execute(
+            "INSERT INTO v SELECT range, "
+            "[random(), random(), random(), random()]::FLOAT[4] FROM range(20)"
+        )
+        conn.execute("CREATE INDEX vidx ON v USING HNSW (CAST(raw AS FLOAT[4]))")
+        conn.execute("CHECKPOINT")
+    finally:
+        conn.close()
+
+    target = tmp_path / "out.duckdb"
+    with pytest.raises(ValueError, match="non-column expression"):
+        compact_database(src, target)
+    assert not target.exists()
+
+
 def test_restore_rebuilds_hnsw_from_recipe(cosine_hnsw_db: Path, tmp_path: Path) -> None:
     artifact = tmp_path / "skipped.duckdb"
     compact_database(cosine_hnsw_db, artifact, skip_hnsw=True)
