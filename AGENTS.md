@@ -41,7 +41,7 @@ chunkhound-index-compactor/
 
 | Module | Public | Private |
 |---|---|---|
-| `core.py` | `compact_database`, `restore_indexes`, `replace_with_compacted`, `human_size`, `CompactionResult`, `RestoreResult` | `_topological_order`, `_referenced_tables`, `_reject_unsupported_objects`, `_capture_hnsw_recipes`, `_write_recipe_table`, `_load_bundled_extension`, `_bundled_extension_path`, `_escape_sql_literal`, `RECIPE_TABLE` constant, regexes `_HNSW_RE`, `_HNSW_COLUMN_RE`, `_FK_REFERENCES_RE` |
+| `core.py` | `compact_database`, `restore_indexes`, `replace_with_compacted`, `human_size`, `CompactionResult`, `RestoreResult` | `_topological_order`, `_referenced_tables`, `_reject_unsupported_objects`, `_capture_hnsw_recipes`, `_write_recipe_table`, `_load_bundled_extension`, `_bundled_extension_path`, `_escape_sql_literal`, `_quote_identifier`, `RECIPE_TABLE` constant, regexes `_HNSW_RE`, `_HNSW_COLUMN_RE`, `_FK_REFERENCES_RE`, `_GENERATED_COLUMN_RE`, `_BARE_IDENTIFIER_RE` |
 | `cli.py` | `app` (Typer), `compact`, `restore` commands; `DefaultCommandGroup` routes bare args to `compact` | (none) |
 | `__main__.py` | `app()` invocation | (none) |
 | `__init__.py` | re-exports from `core` | (none) |
@@ -52,7 +52,9 @@ chunkhound-index-compactor/
 |---|---|
 | Rebuild SQL sequence | `core.py` → `compact_database()` |
 | FK ordering | `core.py` → `_topological_order()` / `_referenced_tables()` |
-| Schema/view rejection | `core.py` → `_reject_unsupported_objects()` |
+| Front-gate refusal of unsupported source shapes | `core.py` → `_reject_unsupported_objects()` (schemas, views, user-defined types, generated columns, self-ref FKs) and `_capture_hnsw_recipes()` (expression HNSW columns) |
+| Cross-filesystem replace fallback | `core.py` → `replace_with_compacted()` (`shutil.move` on `OSError`) |
+| DuckDB spill location | `core.py` → `compact_database()` (`SET temp_directory = <target.parent>/.chunkhound-compactor.tmp`) |
 | HNSW metric recovery / recipe table schema | `core.py` → `_capture_hnsw_recipes()` / `_write_recipe_table()` / `RECIPE_TABLE` |
 | Index restore | `core.py` → `restore_indexes()` |
 | Atomic replace / backup suffix | `core.py` → `replace_with_compacted()` |
@@ -66,8 +68,9 @@ chunkhound-index-compactor/
 ## Invariants enforced by code
 
 - HNSW metric must survive rebuild. Catalog DDL strips `WITH (...)`, so the metric is read from `pragma_hnsw_index_info()` in `_capture_hnsw_recipes`. (architecture.md §ChunkHound compatibility)
-- SQL DDL is built by string interpolation (no parameter binding); escape literals via `_escape_sql_literal`, wrap table and index names in double quotes. (architecture.md §Compaction pipeline)
-- Public-API exceptions (`ValueError`, `FileNotFoundError`, `FileExistsError`) enumerated at README §Library Usage; refused inputs reasoned at architecture.md §Not supported (and why).
+- SQL DDL is built by string interpolation (no parameter binding); escape literals via `_escape_sql_literal`, wrap table and index names via `_quote_identifier`. (architecture.md §Compaction pipeline)
+- Public-API exceptions (`ValueError`, `FileNotFoundError`, `FileExistsError`, `RuntimeError`, `OSError`) enumerated at README §Library Usage; refused inputs reasoned at architecture.md §Not supported (and why).
+- Front-gate refusals run before `ATTACH dst`; on any failure after `ATTACH dst`, the partial target and its `.wal` are unlinked. (architecture.md §Compaction pipeline)
 - Reading the source never loads its HNSW into RAM; building the destination HNSW dominates peak RAM. `--skip-hnsw` is the small-RAM unlock; `restore` is a separate-machine step. (architecture.md §RAM cost asymmetry)
 
 ## Build / verify

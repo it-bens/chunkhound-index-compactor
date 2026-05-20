@@ -177,10 +177,15 @@ def compact_database(source: Path, target: Path, *, skip_hnsw: bool = False) -> 
     and falls back to brute-force search until restored.
 
     Raises:
-        ValueError: `target` resolves to the same path as `source`, or the
-            source schema contains a foreign-key cycle.
+        ValueError: `target` resolves to the same path as `source`; the source
+            contains a non-`main` schema, a view, a user-defined type, a
+            generated column, a self-referential FK, or an HNSW index on a
+            non-bare-column expression; or the FK graph contains a cycle.
+            Every refusal fires before the target file is created.
         FileNotFoundError: `source` does not exist.
         FileExistsError: `target` already exists.
+        RuntimeError: the bundled `vss` extension binary cannot be located.
+            Only reachable when the source contains at least one HNSW index.
     """
     if target.resolve() == source.resolve():
         raise ValueError("target path must differ from source")
@@ -336,6 +341,7 @@ def restore_indexes(database: Path) -> RestoreResult:
         FileNotFoundError: `database` does not exist.
         ValueError: `database` has no `_compactor_hnsw_recipe` table (it is not
             a `--skip-hnsw` artifact, so there is nothing to restore).
+        RuntimeError: the bundled `vss` extension binary cannot be located.
     """
     if not database.is_file():
         raise FileNotFoundError(f"database not found: {database}")

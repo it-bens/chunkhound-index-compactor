@@ -1,6 +1,6 @@
 # ChunkHound Index Compactor
 
-Compact a [DuckDB](https://duckdb.org) database by rebuilding it into a fresh file. The motivating use case was shrinking a bloated [ChunkHound](https://github.com/chunkhound/chunkhound) index (whose per-batch HNSW re-serialization leaves large amounts of orphaned-but-counted blocks), but the implementation is fully generic; it works on any single-schema DuckDB file.
+Compact a [DuckDB](https://duckdb.org) database by rebuilding it into a fresh file. The motivating and supported use case is shrinking a bloated [ChunkHound](https://github.com/chunkhound/chunkhound) index, whose drop-and-recreate HNSW churn (above its 50-row write-batch threshold) leaves large amounts of orphaned-but-counted blocks. The rebuild pipeline is structurally generic and works on other single-schema DuckDB files, but only ChunkHound-shaped inputs are promised: any shape outside that scope is refused at the front gate (see [§Not Supported](#-not-supported)) rather than silently dropped or rebuilt with loss.
 
 ## ⚡ Quick Start
 
@@ -64,23 +64,30 @@ backup = replace_with_compacted(result.source, result.target)
 ```
 
 `compact_database()` raises:
-- `ValueError`: `target` resolves to the same path as `source`, the source has a non-`main` schema or a view, or the FK graph has a cycle.
+- `ValueError`: `target` resolves to the same path as `source`; the source has a non-`main` schema, a view, a user-defined type, a generated column, a self-referential FK, an HNSW index on a non-bare-column expression; or the FK graph has a cycle.
 - `FileNotFoundError`: `source` does not exist.
 - `FileExistsError`: `target` already exists.
+- `RuntimeError`: the bundled `vss` extension binary cannot be located (only reachable if the source contains an HNSW index).
 
 `restore_indexes()` raises:
 - `FileNotFoundError`: `database` does not exist.
 - `ValueError`: `database` has no `_compactor_hnsw_recipe` table (not a `--skip-hnsw` artifact).
+- `RuntimeError`: the bundled `vss` extension binary cannot be located.
 
-`replace_with_compacted()` raises `FileExistsError` if `<source>.bak` already exists. It refuses to overwrite an existing backup.
+`replace_with_compacted()` raises:
+- `FileNotFoundError`: `source` or `compacted` is missing.
+- `FileExistsError`: `<source>.bak` already exists (it refuses to overwrite an existing backup).
+- `OSError`: the move from `compacted` to `source` fails even via the cross-filesystem fallback (`shutil.move`).
 
 ## 🚫 Not Supported
 
-The tool fails hard rather than silently dropping anything it cannot reproduce:
+The tool fails hard rather than silently dropping anything it cannot reproduce. Each refusal fires before the target file is created.
 
 - Non-`main` schemas and views (raise `ValueError`).
+- User-defined types, generated columns, self-referential foreign keys, and HNSW indexes on non-bare-column expressions (raise `ValueError`).
 - Foreign-key cycles among tables (raise `ValueError`).
 - HNSW tuning parameters other than `metric` (`M`, `M0`, `ef_construction`, `ef_search`); they are not recoverable from a built index and are rebuilt at the `vss` defaults.
+- Table and column comments are not carried across the rebuild.
 
 See [docs/architecture.md](docs/architecture.md#not-supported-and-why) for the reasoning, and [docs/out-of-scope.md](docs/out-of-scope.md) for approaches considered and not pursued.
 

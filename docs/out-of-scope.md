@@ -19,21 +19,25 @@ The pragma is the right tool when an HNSW has accumulated deletes; it isn't the 
 
 These knobs affect recall and build/query speed. They aren't recovered because:
 
-- **They're not surfaced by the catalog or any pragma.** `duckdb_indexes().sql` strips the entire `WITH (...)` clause; `pragma_hnsw_index_info()` exposes only `metric` and `dimensions`. There's no way to read them off a built index.
+- **They're not surfaced by the catalog or any pragma.** `duckdb_indexes().sql` strips the entire `WITH (...)` clause. `pragma_hnsw_index_info()` returns `catalog_name`, `schema_name`, `index_name`, `table_name`, `metric`, `dimensions`, `count`, `capacity`, `approx_memory_usage`, `levels`, and `levels_stats`. None of the build-time tuning knobs appear there. There's no way to read them off a built index.
 - **They're dominated by upstream factors.** The embedding model and reranking strategy (ChunkHound's MultiHopStrategy) move recall far more than these knobs.
 - **Defaults are sane.** vss defaults (`connectivity`/`M`, `expansion_add`/`ef_construction`, `expansion_search`/`ef_search`) work for the ChunkHound workload.
 
 If you depended on tuned values, you have to recreate those indexes manually after compaction. The tool does not pretend it can preserve them.
 
-## Schema evolution, multi-schema, views
+## Schema evolution, multi-schema, views, exotic columns
 
-The tool refuses non-`main` schemas and any view at the front gate. Reasons:
+The tool refuses non-`main` schemas, views, user-defined types, generated columns, self-referential foreign keys, and HNSW indexes on non-bare-column expressions at the front gate. Reasons:
 
 - Reproducing non-`main` schemas requires emitting `CREATE SCHEMA` before tables and rewriting `REFERENCES` to be schema-qualified.
 - Reproducing views requires resolving them against the rebuilt tables (which may run before the underlying tables are materialized).
-- Silently dropping either case would corrupt the user's data model.
+- User-defined types are inlined into the captured CREATE TABLE DDL, so reproducing them as named types would require a second pre-pass over `duckdb_types()`.
+- Generated columns are kept in the DDL's column list but rejected by `INSERT ... SELECT *`, so reproducing them needs an explicit column list per table and exclusion of virtual columns.
+- A self-referential FK survives `duckdb_tables().sql` as invalid DDL: the FK clause gets dropped and the column list keeps a trailing comma. Reproducing it would require either a post-create `ALTER TABLE ... ADD CONSTRAINT` (which DuckDB does not support for FKs) or deferred constraints (not portable across DuckDB versions).
+- Expression HNSW keys cannot be captured by the current single-pattern regex (`_HNSW_COLUMN_RE` truncates at the first inner `)`), and the recipe schema only carries a column string, not an arbitrary expression.
+- Silently dropping any of these would corrupt the user's data model or break later queries against the rebuilt file.
 
-ChunkHound writes everything under `main` and uses no views, so the refusal doesn't affect the motivating workload. The handling is a deliberate fail-hard.
+ChunkHound's production index hits none of these (verified at v5.1.0), so the refusals don't affect the motivating workload. They're safety nets for misuse.
 
 ## Out-of-core HNSW build
 
