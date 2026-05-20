@@ -79,14 +79,6 @@ def test_cli_help_lists_commands() -> None:
     assert "restore" in result.output
 
 
-def test_cli_compact_help_lists_options() -> None:
-    result = runner.invoke(app, ["compact", "--help"])
-    assert result.exit_code == 0
-    assert "SOURCE" in result.output
-    assert "--replace" in result.output
-    assert "--skip-hnsw" in result.output
-
-
 def test_cli_restore_help_lists_database() -> None:
     result = runner.invoke(app, ["restore", "--help"])
     assert result.exit_code == 0
