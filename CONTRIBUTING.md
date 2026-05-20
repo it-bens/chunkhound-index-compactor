@@ -3,11 +3,14 @@
 ## Setup
 
 ```bash
-uv sync --extra dev      # Python toolchain (mypy, pytest, ruff, typos)
+uv sync --extra dev      # Python toolchain (mypy, pytest, ruff, typos, pre-commit)
 npm install              # Node toolchain (prettier; one-time per clone)
+uv run pre-commit install  # wires the git pre-commit hook (one-time per clone)
 ```
 
 Python 3.10 through 3.13 supported. macOS and Linux are tested.
+
+The pre-commit hook runs ruff, typos, prettier, mypy, and pytest on every commit. Bypass with `git commit --no-verify` when you need to ship a WIP commit; CI still runs the same checks.
 
 ## Local checks
 

@@ -1,0 +1,38 @@
+# Mirrors the local checks documented in CONTRIBUTING.md §Local checks.
+# Install once per clone: `pre-commit install`.
+# Run against the whole tree on demand: `pre-commit run --all-files`.
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.13
+    hooks:
+      - id: ruff
+        # Default invocation is `ruff check` without --fix.
+        # Auto-fix is off by project policy; run `uv run ruff check --fix` manually.
+
+  - repo: https://github.com/crate-ci/typos
+    rev: v1.46.2
+    hooks:
+      - id: typos
+
+  - repo: https://github.com/rbubley/mirrors-prettier
+    rev: v3.8.3
+    hooks:
+      - id: prettier
+        args: [--check]
+
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy
+        entry: uv run mypy src/
+        language: system
+        files: ^(src/.*\.py|pyproject\.toml)$
+        pass_filenames: false
+
+      - id: pytest
+        name: pytest
+        entry: uv run pytest
+        language: system
+        always_run: true
+        pass_filenames: false
