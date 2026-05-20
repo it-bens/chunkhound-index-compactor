@@ -74,6 +74,35 @@ def test_replace_creates_backup_and_swaps(populated_db: Path, tmp_path: Path) ->
     assert not target.exists()
 
 
+def test_replace_falls_back_when_second_rename_crosses_devices(
+    populated_db: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # When the compacted file lives on a different filesystem from the source
+    # (e.g. user-supplied --target on another mount), `Path.rename` raises
+    # EXDEV. The fallback path must complete the swap via `shutil.move`.
+    target = tmp_path / "out.duckdb"
+    compact_database(populated_db, target)
+    original_bytes = populated_db.read_bytes()
+
+    original_rename = Path.rename
+    state = {"calls": 0}
+
+    def selective_rename(self: Path, dst: Path) -> Path:
+        state["calls"] += 1
+        if state["calls"] == 2:
+            raise OSError(18, "Invalid cross-device link")
+        return original_rename(self, dst)
+
+    monkeypatch.setattr(Path, "rename", selective_rename)
+
+    backup = replace_with_compacted(populated_db, target)
+
+    assert backup.is_file()
+    assert backup.read_bytes() == original_bytes
+    assert populated_db.is_file()
+    assert not target.exists()
+
+
 def test_replace_refuses_existing_backup(populated_db: Path, tmp_path: Path) -> None:
     target = tmp_path / "out.duckdb"
     compact_database(populated_db, target)

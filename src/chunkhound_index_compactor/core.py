@@ -13,6 +13,7 @@ strips the `WITH (...)` clause).
 from __future__ import annotations
 
 import re
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -192,9 +193,16 @@ def compact_database(source: Path, target: Path, *, skip_hnsw: bool = False) -> 
     src_literal = _escape_sql_literal(str(source))
     dst_literal = _escape_sql_literal(str(target))
 
+    spill_dir = target.parent / ".chunkhound-compactor.tmp"
+    spill_dir.mkdir(parents=True, exist_ok=True)
+
     conn = duckdb.connect(":memory:")
     dst_attached = False
     try:
+        # Co-locate DuckDB spill with the target's filesystem. DuckDB's default
+        # `temp_directory` is the CWD-relative `.tmp`, which can fill a small
+        # working filesystem while the destination disk has space.
+        conn.execute(f"SET temp_directory = '{_escape_sql_literal(str(spill_dir))}'")
         conn.execute(f"ATTACH '{src_literal}' AS src (READ_ONLY)")
         _reject_unsupported_objects(conn)
 
@@ -253,8 +261,12 @@ def compact_database(source: Path, target: Path, *, skip_hnsw: bool = False) -> 
         conn.execute("DETACH dst")
     except BaseException:
         conn.close()
-        if dst_attached and target.exists():
-            target.unlink()
+        if dst_attached:
+            if target.exists():
+                target.unlink()
+            wal = target.with_suffix(target.suffix + ".wal")
+            if wal.exists():
+                wal.unlink()
         raise
     conn.close()
 
@@ -396,6 +408,8 @@ def replace_with_compacted(source: Path, compacted: Path) -> Path:
     Raises:
         FileNotFoundError: `source` or `compacted` is missing.
         FileExistsError: backup path already exists.
+        OSError: the move from `compacted` to `source` fails even via the
+            cross-filesystem fallback (`shutil.move`).
     """
     if not source.is_file():
         raise FileNotFoundError(f"source not found: {source}")
@@ -407,7 +421,14 @@ def replace_with_compacted(source: Path, compacted: Path) -> Path:
         raise FileExistsError(f"backup path already exists: {backup}")
 
     source.rename(backup)
-    compacted.rename(source)
+    try:
+        compacted.rename(source)
+    except OSError:
+        # `compacted` may live on a different filesystem from `source` (the
+        # user passed an explicit target on another mount). `Path.rename`
+        # raises EXDEV for cross-device moves; `shutil.move` copies + deletes
+        # across filesystems.
+        shutil.move(str(compacted), str(source))
     return backup
 
 
