@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import duckdb
 import pytest
 
 from chunkhound_index_compactor import compact_database
@@ -31,10 +32,28 @@ def test_bundled_extension_path_missing_binary_raises(
 
 
 def test_compact_hnsw_db_rebuilds(hnsw_db: Path, tmp_path: Path) -> None:
+    # Rebuild must preserve the table contents AND the HNSW index, not just
+    # produce a non-empty file. The size-only check passed on a DuckDB file
+    # holding nothing but a header.
     target = tmp_path / "out.duckdb"
     result = compact_database(hnsw_db, target)
     assert target.is_file()
     assert result.target_size > 0
+
+    out = duckdb.connect(str(target), read_only=True)
+    try:
+        out.execute(f"LOAD '{_bundled_extension_path('vss')}'")
+        row_count = out.execute("SELECT count(*) FROM vectors").fetchone()
+        index_count = out.execute(
+            "SELECT count(*) FROM duckdb_indexes() WHERE sql ILIKE '%USING HNSW%'"
+        ).fetchone()
+    finally:
+        out.close()
+
+    assert row_count is not None
+    assert row_count[0] == 50
+    assert index_count is not None
+    assert index_count[0] == 1
 
 
 def test_compact_shopware_cli_index_shrinks_substantially(

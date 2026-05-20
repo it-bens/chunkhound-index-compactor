@@ -13,11 +13,24 @@ from chunkhound_index_compactor import (
 
 
 def test_compact_returns_result(populated_db: Path, tmp_path: Path) -> None:
+    # Verify the returned CompactionResult lines up with the actual filesystem
+    # state AND that the rebuilt file holds the row count the source had. The
+    # size-only check alone passed even on an empty-header DuckDB file.
     target = tmp_path / "out.duckdb"
     result = compact_database(populated_db, target)
 
-    assert result.source_size > 0
-    assert result.target_size > 0
+    assert result.source == populated_db
+    assert result.target == target
+    assert result.source_size == populated_db.stat().st_size
+    assert result.target_size == target.stat().st_size
+
+    out = duckdb.connect(str(target), read_only=True)
+    try:
+        row = out.execute("SELECT count(*) FROM items").fetchone()
+    finally:
+        out.close()
+    assert row is not None
+    assert row[0] == 100
 
 
 def test_compact_roundtrips_data(populated_db: Path, tmp_path: Path) -> None:

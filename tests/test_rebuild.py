@@ -140,6 +140,85 @@ def test_rebuild_preserves_metric_on_real_fixture(shopware_cli_index: Path, tmp_
     assert all(m == "cosine" for m in metrics.values())
 
 
+@pytest.fixture
+def two_hnsw_db(tmp_path: Path) -> Path:
+    # Mirrors the real ChunkHound shape: two embedding tables of different
+    # dimensions, both indexed with cosine HNSW (verified at v5.1.0 against
+    # the 1.14 TiB production index).
+    db_path = tmp_path / "two_hnsw.duckdb"
+    conn = duckdb.connect(str(db_path))
+    try:
+        conn.execute(f"LOAD '{_bundled_extension_path('vss')}'")
+        conn.execute("SET hnsw_enable_experimental_persistence = true")
+        conn.execute("CREATE TABLE e1024 (id INTEGER, embedding FLOAT[1024])")
+        conn.execute("CREATE TABLE e1536 (id INTEGER, embedding FLOAT[1536])")
+        conn.execute(
+            "INSERT INTO e1024 SELECT range, "
+            "[random() FOR _ IN range(1024)]::FLOAT[1024] FROM range(10)"
+        )
+        conn.execute(
+            "INSERT INTO e1536 SELECT range, "
+            "[random() FOR _ IN range(1536)]::FLOAT[1536] FROM range(10)"
+        )
+        conn.execute(
+            "CREATE INDEX idx_hnsw_1024 ON e1024 USING HNSW (embedding) WITH (metric = 'cosine')"
+        )
+        conn.execute(
+            "CREATE INDEX idx_hnsw_1536 ON e1536 USING HNSW (embedding) WITH (metric = 'cosine')"
+        )
+        conn.execute("CHECKPOINT")
+    finally:
+        conn.close()
+    return db_path
+
+
+def test_rebuild_preserves_multiple_hnsw_indexes(two_hnsw_db: Path, tmp_path: Path) -> None:
+    # Real ChunkHound indexes carry multiple HNSW indexes (one per embedding
+    # dimension). The rebuild must reproduce every one with its recorded metric.
+    target = tmp_path / "out.duckdb"
+    compact_database(two_hnsw_db, target)
+
+    metrics = _hnsw_metrics(target)
+    assert metrics == {"idx_hnsw_1024": "cosine", "idx_hnsw_1536": "cosine"}
+
+    out = duckdb.connect(str(target), read_only=True)
+    try:
+        assert out.execute("SELECT count(*) FROM e1024").fetchone()[0] == 10
+        assert out.execute("SELECT count(*) FROM e1536").fetchone()[0] == 10
+    finally:
+        out.close()
+
+
+def test_rebuild_replays_plain_secondary_index(tmp_path: Path) -> None:
+    # The pipeline replays non-HNSW index DDL verbatim. Existing tests run
+    # CREATE INDEX through the rebuild via the shopware fixture but never
+    # assert the index survives.
+    src = tmp_path / "plain-idx.duckdb"
+    conn = duckdb.connect(str(src))
+    try:
+        conn.execute("CREATE TABLE t (id INTEGER, label VARCHAR)")
+        conn.execute("INSERT INTO t SELECT range, 'row-' || range FROM range(20)")
+        conn.execute("CREATE INDEX t_label_idx ON t(label)")
+        conn.execute("CHECKPOINT")
+    finally:
+        conn.close()
+
+    target = tmp_path / "out.duckdb"
+    compact_database(src, target)
+
+    out = duckdb.connect(str(target), read_only=True)
+    try:
+        rows = out.execute(
+            "SELECT index_name, sql FROM duckdb_indexes() WHERE table_name = 't'"
+        ).fetchall()
+    finally:
+        out.close()
+
+    assert len(rows) == 1
+    assert rows[0][0] == "t_label_idx"
+    assert "label" in rows[0][1].lower()
+
+
 def test_rebuild_orders_fk_tables(tmp_path: Path) -> None:
     # Child table sorts alphabetically before its parent; a naive
     # alphabetical/catalog-order rebuild would insert children first and trip
