@@ -1,0 +1,3 @@
+# Ignore outputs produced by manual CLI runs against the fixtures
+*.compacted.duckdb
+*.bak

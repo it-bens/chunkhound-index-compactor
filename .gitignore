@@ -1,0 +1,50 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+*.egg-info/
+*.egg
+build/
+dist/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Coverage
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Compactor-produced artifacts (any location)
+*.compacted.duckdb
+*.bak
+
+# Superpowers plans and specs stay untracked
+docs/superpowers/plans/
+docs/superpowers/specs/
+
+# .claude is excluded except for the shared skills and project settings
+.claude/*
+!.claude/hook-contexts/
+!.claude/skills/
+!.claude/settings.json

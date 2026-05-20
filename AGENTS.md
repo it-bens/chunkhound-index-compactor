@@ -1,0 +1,95 @@
+# AGENTS.md (chunkhound-index-compactor)
+
+Operational navigation for LLM coding agents. Human-facing docs: `README.md`, `docs/architecture.md`, `docs/benchmarks.md`, `docs/out-of-scope.md`. Do not duplicate them here.
+
+## Layout
+
+```
+chunkhound-index-compactor/
+├── pyproject.toml
+├── README.md
+├── AGENTS.md
+├── CLAUDE.md                     # @AGENTS.md
+├── CHANGELOG.md
+├── LICENSE
+├── docs/
+│   ├── architecture.md           # pipeline, RAM asymmetry, recipe table, vss bundling, ChunkHound compat, refused inputs
+│   ├── benchmarks.md             # empirical baseline (1.25 TB ChunkHound index + fixture cross-check)
+│   └── out-of-scope.md           # rejected approaches (DiskANN, hnsw_compact_index, M/M0/ef_*, ...)
+├── src/chunkhound_index_compactor/
+│   ├── __init__.py               # public API re-exports
+│   ├── __main__.py               # python -m entry
+│   ├── cli.py                    # Typer app
+│   └── core.py                   # compaction logic
+└── tests/
+    ├── conftest.py               # fixtures: populated_db, bloated_db, hnsw_db, shopware_cli_index
+    ├── fixtures/                 # committed real-world DB artifacts (provenance in conftest.py)
+    ├── test_core.py
+    ├── test_cli.py
+    ├── test_extensions.py
+    ├── test_rebuild.py
+    └── test_human_size.py
+```
+
+## Module → symbols
+
+| Module | Public | Private |
+|---|---|---|
+| `core.py` | `compact_database`, `restore_indexes`, `replace_with_compacted`, `human_size`, `CompactionResult`, `RestoreResult` | `_topological_order`, `_referenced_tables`, `_reject_unsupported_objects`, `_capture_hnsw_recipes`, `_write_recipe_table`, `_load_bundled_extension`, `_bundled_extension_path`, `_escape_sql_literal`, `RECIPE_TABLE` constant, regexes `_HNSW_RE`, `_HNSW_COLUMN_RE`, `_FK_REFERENCES_RE` |
+| `cli.py` | `app` (Typer), `compact`, `restore` commands; `DefaultCommandGroup` routes bare args to `compact` | (none) |
+| `__main__.py` | `app()` invocation | (none) |
+| `__init__.py` | re-exports from `core` | (none) |
+
+## When to modify
+
+| Task | File / symbol |
+|---|---|
+| Rebuild SQL sequence | `core.py` → `compact_database()` |
+| FK ordering | `core.py` → `_topological_order()` / `_referenced_tables()` |
+| Schema/view rejection | `core.py` → `_reject_unsupported_objects()` |
+| HNSW metric recovery / recipe table schema | `core.py` → `_capture_hnsw_recipes()` / `_write_recipe_table()` / `RECIPE_TABLE` |
+| Index restore | `core.py` → `restore_indexes()` |
+| Atomic replace / backup suffix | `core.py` → `replace_with_compacted()` |
+| CLI args / commands / output strings | `cli.py` (`DefaultCommandGroup`, `compact`, `restore`) |
+| Byte formatting | `core.py` → `human_size()` |
+| New public export | `core.py` + `__init__.py` `__all__` |
+| Pipeline narrative, design rationale, refused-input reasoning | `docs/architecture.md` (not here) |
+| Empirical baseline / scale numbers | `docs/benchmarks.md` (not here) |
+| Rejected approaches (DiskANN, hnsw_compact_index, M/M0/ef_*, etc.) | `docs/out-of-scope.md` (not here) |
+
+## Invariants enforced by code
+
+- `target.resolve() == source.resolve()` → `ValueError`
+- `source` missing → `FileNotFoundError`
+- `target` exists pre-run → `FileExistsError`
+- non-`main` schema in source → `ValueError` (detected via `duckdb_tables()` filtered on `schema_name`, not the `internal` flag; `duckdb_schemas()` marks the source's `main` as `internal = true`)
+- view in source → `ValueError`
+- FK cycle → `ValueError` from `_topological_order()`
+- `BaseException` after `dst` attach → unlink `target`, re-raise
+- `restore_indexes` without `_compactor_hnsw_recipe` → `ValueError`
+- `replace_with_compacted` when `<source>.bak` exists → `FileExistsError`
+- HNSW metric must survive rebuild. Catalog DDL strips `WITH (...)`, so the metric is read from `pragma_hnsw_index_info()` in `_capture_hnsw_recipes`. (architecture.md §ChunkHound compatibility)
+- Reading the source never loads its HNSW into RAM; building the destination HNSW dominates peak RAM. `--skip-hnsw` is the small-RAM unlock; `restore` is a separate-machine step. (architecture.md §RAM cost asymmetry)
+
+## Build / verify
+
+```bash
+uv sync --extra dev
+uv run pytest
+uv run ruff check src/ tests/
+uv run ruff format --check src/ tests/
+uv run mypy src/
+```
+
+Strict ruff (`E W F I B C4 UP ARG SIM PTH`, line 100, `E501` ignored). Strict mypy (`tests.*` relaxed; `duckdb`, `duckdb_extension_vss` ignored for missing imports). pytest discovers `tests/`.
+
+## Runtime deps
+
+`duckdb>=1.4.0,<1.5.3.dev0` (range matches `chunkhound` to stay file-format-compatible), `duckdb-extension-vss>=1.5.2` (pins `duckdb==1.5.2` transitively), `typer>=0.25`. Dev: `mypy>=2.1`, `pytest>=9.0`, `pytest-cov>=7.0`, `ruff>=0.15`. Python `>=3.10,<3.14`.
+
+## SQL construction notes
+
+- DuckDB DDL does not accept parameter binding; literals built by string interpolation
+- single quotes doubled via `_escape_sql_literal()`
+- table / index names wrapped in double quotes
+- `vss` loaded only when source contains an HNSW index, via `LOAD '<path>'` against `duckdb_extension_vss` package bundle (no `INSTALL`, no network)
