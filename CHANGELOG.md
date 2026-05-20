@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.1] - 2026-05-20
+
+### Packaging
+- README, `[project.urls]` (Homepage / Repository / Issues / Changelog), `authors`, `keywords`, and trove classifiers now ship in the published package metadata. The PyPI project page renders the README and links back to the GitHub repository; 0.1.0 shipped without any of these.
+
 ## [0.1.0] - 2026-05-20
 
 ### Added
