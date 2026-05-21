@@ -78,13 +78,14 @@ The tool is structurally generic, but it was built against ChunkHound and a few 
 
 ## Not supported (and why)
 
-These cases the code refuses. The first five are front-gate refusals in `_reject_unsupported_objects` and `_capture_hnsw_recipes`; each fires before `ATTACH dst`, so the target file is never created when one trips.
+These cases the code refuses with `ValueError` before `ATTACH dst`, so the target file is never created. The first six are caught by the front-gate helpers `_reject_unsupported_objects` and `_capture_hnsw_recipes`; the seventh by `_topological_order`.
 
-- **Non-`main` schemas and views.** Reproducing schemas requires `CREATE SCHEMA` ordering and qualified `REFERENCES` rewriting; reproducing views requires resolving them against the rebuilt tables. Silently dropping them would corrupt the user's data model.
-- **User-defined types.** `duckdb_tables().sql` inlines ENUM/STRUCT/alias definitions when emitting CREATE TABLE, so without refusing the user's `CREATE TYPE` would be dropped silently and downstream `value::<type>` casts against the rebuilt DB would fail.
-- **Generated columns.** `duckdb_tables().sql` keeps the virtual column in the column list, but `INSERT INTO ... SELECT *` rejects it as a target, so the rebuild crashed opaquely at the per-table insert.
-- **Self-referential foreign keys.** `duckdb_tables().sql` drops the FK clause and leaves a trailing comma in the column list. Lenient DuckDB parsers lost the constraint silently; stricter ones crashed at `CREATE TABLE`. Refusing turns either outcome into a clear pre-target error.
-- **HNSW indexes on non-bare-column expressions.** `_HNSW_COLUMN_RE` is non-greedy and truncates the captured key at the first inner `)`, so an expression like `CAST(col AS FLOAT[N])` would round-trip as malformed DDL. Refusing keeps the recipe round-trip honest and removes the deferred `restore`-time crash.
-- **Foreign-key cycles.** Topological order is undefined for a cycle; deferring constraints is not generally portable across DuckDB versions. `_topological_order` raises `ValueError`.
+- Non-`main` schemas. (see out-of-scope.md §Non-`main` schemas)
+- Views. (see out-of-scope.md §Views)
+- User-defined types. (see out-of-scope.md §User-defined types)
+- Generated columns. (see out-of-scope.md §Generated columns)
+- Self-referential foreign keys. (see out-of-scope.md §Self-referential foreign keys)
+- Expression HNSW keys. (see out-of-scope.md §Expression HNSW keys)
+- Foreign-key cycles. (see out-of-scope.md §Foreign-key cycles)
 
-For per-case reasoning, metadata the rebuild drops rather than refuses (HNSW tuning beyond `metric`, table and column comments), latent edges (quoted FK identifiers), rejected approaches (DiskANN, `PRAGMA hnsw_compact_index`, schema evolution, out-of-core HNSW, resume after partial failure, `--memory-limit` / `--temp-dir` flags), and the fix shape if scope ever widens, see [out-of-scope.md](out-of-scope.md).
+For metadata the rebuild drops rather than refuses, latent code edges, rejected alternative approaches, and per-case fix shapes, see [out-of-scope.md](out-of-scope.md).
