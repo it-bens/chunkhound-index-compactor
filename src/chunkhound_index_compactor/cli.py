@@ -76,7 +76,7 @@ def compact(
 
     try:
         result = compact_database(source, target, skip_hnsw=skip_hnsw)
-    except (FileExistsError, FileNotFoundError, ValueError, RuntimeError) as e:
+    except (FileExistsError, FileNotFoundError, ValueError, RuntimeError, OSError) as e:
         typer.echo(f"error: {e}", err=True)
         raise typer.Exit(code=1) from e
 

@@ -12,6 +12,7 @@ strips the `WITH (...)` clause).
 
 from __future__ import annotations
 
+import contextlib
 import re
 import shutil
 from dataclasses import dataclass
@@ -199,7 +200,10 @@ def compact_database(source: Path, target: Path, *, skip_hnsw: bool = False) -> 
     dst_literal = _escape_sql_literal(str(target))
 
     spill_dir = target.parent / ".chunkhound-compactor.tmp"
-    spill_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        spill_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        raise OSError(f"cannot create spill directory beside target: {e}") from e
 
     conn = duckdb.connect(":memory:")
     dst_attached = False
@@ -273,7 +277,13 @@ def compact_database(source: Path, target: Path, *, skip_hnsw: bool = False) -> 
             if wal.exists():
                 wal.unlink()
         raise
-    conn.close()
+    else:
+        conn.close()
+    finally:
+        # Remove the spill dir when DuckDB never spilled into it. rmdir fails on
+        # a non-empty dir, so an in-progress spill is never deleted.
+        with contextlib.suppress(OSError):
+            spill_dir.rmdir()
 
     return CompactionResult(
         source=source,

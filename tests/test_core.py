@@ -47,6 +47,15 @@ def test_compact_roundtrips_data(populated_db: Path, tmp_path: Path) -> None:
     assert row[0] == 100
 
 
+def test_compact_removes_unused_spill_dir(populated_db: Path, tmp_path: Path) -> None:
+    # The spill dir is created beside the target up front; when DuckDB never
+    # spills (small source) it must not be left behind.
+    target = tmp_path / "out.duckdb"
+    compact_database(populated_db, target)
+
+    assert not (tmp_path / ".chunkhound-compactor.tmp").exists()
+
+
 def test_compact_shrinks_bloated_db(bloated_db: Path, tmp_path: Path) -> None:
     target = tmp_path / "out.duckdb"
     result = compact_database(bloated_db, target)

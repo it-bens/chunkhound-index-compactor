@@ -187,6 +187,26 @@ def test_cli_replace_skip_hnsw_warns_in_place_db_has_no_vector_index(
     assert "no vector index" in result.output.lower()
 
 
+def test_cli_compact_surfaces_spill_dir_failure_cleanly(
+    populated_db: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The spill dir is created beside the target before compaction; on a
+    # read-only or full filesystem its mkdir raises OSError. The CLI must turn
+    # that into a clean `error:` line, not a stack trace.
+    original_mkdir = Path.mkdir
+
+    def boom(self: Path, *args: object, **kwargs: object) -> None:
+        if self.name == ".chunkhound-compactor.tmp":
+            raise PermissionError("read-only filesystem")
+        original_mkdir(self, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(Path, "mkdir", boom)
+
+    result = runner.invoke(app, [str(populated_db), str(tmp_path / "out.duckdb")])
+    assert result.exit_code == 1
+    assert "error:" in result.output
+
+
 def test_cli_replace_handles_os_error_cleanly(
     populated_db: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

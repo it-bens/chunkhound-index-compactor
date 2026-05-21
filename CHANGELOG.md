@@ -14,6 +14,7 @@
 - The `--skip-hnsw` note now prints after the `--replace` step and points at the path the artifact lives at after the whole CLI run (`result.source` with `--replace`, `result.target` without). Previously it pointed at the `.compacted` path that `--replace` renamed away.
 - `replace_with_compacted` falls back to `shutil.move` when the second rename raises `OSError`, so a cross-filesystem `--replace` (user-supplied target on another mount) now completes instead of crashing with EXDEV.
 - The failure-cleanup block in `compact_database` now also unlinks `<target>.wal` if a CHECKPOINT step left one behind.
+- The compact CLI surfaces spill-directory creation failures (`OSError`) as a clean `error:` line, and `compact_database` removes the spill directory when DuckDB never spills into it.
 - DDL identifier interpolation routes through a new `_quote_identifier()` helper that doubles any embedded `"`. The previous sites double-quoted identifiers without escaping.
 
 ### Added
