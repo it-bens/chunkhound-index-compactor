@@ -1,0 +1,73 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: ["config:recommended", ":dependencyDashboard", "schedule:weekends"],
+
+  // 0 means unlimited. The weekend schedule and grouping already cap PR volume;
+  // the default limits would only delay the few PRs we get, not reduce noise.
+  prHourlyLimit: 0,
+  prConcurrentLimit: 0,
+
+  // internalChecksFilter must be "strict" or minimumReleaseAge still opens PRs
+  // (just flagged). 3 days sits below every dep's release cadence here — ruff,
+  // the fastest, is ~weekly — so the gate never starves an update.
+  minimumReleaseAge: "3 days",
+  internalChecksFilter: "strict",
+
+  // Resolve uv.lock against the declared interpreter range, never a newer
+  // Python. Without this, Renovate resolves against the latest Python and can
+  // produce a lock the project's 3.10 floor cannot install.
+  constraints: {
+    python: ">=3.10,<3.14",
+  },
+
+  lockFileMaintenance: {
+    enabled: true,
+    schedule: ["before 5am on saturday"],
+  },
+
+  packageRules: [
+    // No-op today (pep621 does not extract requires-python as a dep); do not
+    // delete as dead. Activates if that lands or another manager surfaces a
+    // `python` dep, keeping the interpreter out of bump consideration.
+    {
+      matchDepNames: ["python"],
+      enabled: false,
+    },
+
+    // Refresh uv.lock within the declared ranges; never edit the ranges. This
+    // preserves intentional caps (e.g. duckdb's chunkhound-compat bound).
+    // Consequence: a major release of a capped dep falls outside the range and
+    // never opens a PR — intended for duckdb / duckdb-extension-vss, whose caps
+    // are lifted by hand in lockstep with ChunkHound. Do not add a rule to
+    // surface those.
+    {
+      matchManagers: ["pep621"],
+      rangeStrategy: "in-range-only",
+    },
+    {
+      matchManagers: ["pep621"],
+      matchUpdateTypes: ["minor", "patch"],
+      groupName: "python deps (non-major)",
+    },
+
+    // prettier is pinned exact; npm's default "auto" strategy replaces an
+    // out-of-range exact pin with the new exact version, so no rangeStrategy
+    // override is needed here.
+    {
+      matchManagers: ["npm"],
+      matchUpdateTypes: ["minor", "patch"],
+      groupName: "js deps (non-major)",
+    },
+
+    // "digest" is grouped here because actions are SHA-pinned; their bumps
+    // arrive as digest updates, not version updates.
+    {
+      matchManagers: ["github-actions"],
+      matchUpdateTypes: ["minor", "patch", "digest"],
+      groupName: "github actions (non-major)",
+    },
+
+    // No rule for majors on purpose: unmatched by the groups above, each major
+    // gets its own dedicated PR.
+  ],
+}
