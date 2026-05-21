@@ -6,7 +6,7 @@ DuckDB's single-file format does not reclaim disk space after deletes or drops, 
 
 `chunkhound-index-compactor` rebuilds the database table-by-table in foreign-key-topological order instead, which sidesteps the race.
 
-What gets reclaimed is not free space. `pragma_database_size` on a real ChunkHound index reports almost no free blocks: the motivating workload showed 4 769 560 used vs 173 free on a 1.1 TiB file (see [benchmarks.md](benchmarks.md)). The bloat is *orphaned used blocks*: old HNSW serializations left behind by ChunkHound's drop-and-recreate index churn on write batches that meet its size threshold (50 rows by default; the `vss` extension re-serializes the whole HNSW on every CHECKPOINT). The catalog counts them as used because no live object references them; only a fresh-file rewrite drops them, because the rewrite copies live catalog objects only.
+What gets reclaimed is not free space. `pragma_database_size` on a real ChunkHound index reports almost no free blocks: the motivating workload showed 4 769 560 used vs 173 free on a 1.1 TiB file (see [benchmarks.md](benchmarks.md)). The bloat is *orphaned used blocks*: old HNSW serializations left behind by ChunkHound's drop-and-recreate index churn on write batches that meet its size threshold (50 rows by default). The `vss` extension re-serializes the whole HNSW on every CHECKPOINT, so each such batch leaves the prior serialization orphaned. The catalog counts them as used because no live object references them; only a fresh-file rewrite drops them, because the rewrite copies live catalog objects only.
 
 ## Compaction pipeline
 
@@ -87,6 +87,6 @@ These cases the code refuses or cannot reproduce. The first five are front-gate 
 - **HNSW indexes on non-bare-column expressions.** `_HNSW_COLUMN_RE` is non-greedy and truncates the captured key at the first inner `)`, so an expression like `CAST(col AS FLOAT[N])` would round-trip as malformed DDL. Refusing keeps the recipe round-trip honest and removes the deferred `restore`-time crash.
 - **Foreign-key cycles.** Topological order is undefined for a cycle; deferring constraints is not generally portable across DuckDB versions. `_topological_order` raises `ValueError`.
 - **HNSW tuning parameters other than `metric`.** `M`, `M0`, `ef_construction`, `ef_search` are not surfaced by any pragma, so they cannot be recovered from a built index. If you depended on tuned values, recreate those indexes manually after compaction.
-- **Table and column comments.** `COMMENT ON` survives `duckdb_tables().sql` only for the table-DDL string, not as a separate catalog entry the rebuild copies. ChunkHound does not use comments (verified against the production index), so this affects no real workload, but the rebuilt file will not carry them.
+- **Table and column comments.** Comments are stored in the `comment` column of `duckdb_tables()` / `duckdb_columns()`, not in the `.sql` DDL the rebuild captures, so they are dropped. ChunkHound does not use comments (verified against the production index), so this affects no real workload.
 
 For approaches that were considered and deliberately not pursued (DiskANN, `PRAGMA hnsw_compact_index`, schema evolution, out-of-core HNSW, resume after partial failure, `--memory-limit` / `--temp-dir` flags), see [out-of-scope.md](out-of-scope.md).

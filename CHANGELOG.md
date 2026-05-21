@@ -4,7 +4,7 @@
 
 ### Fail-hard
 
-- `compact_database` now refuses sources with user-defined types, generated columns, self-referential foreign keys, or HNSW indexes on non-bare-column expressions. Each refusal raises `ValueError` before `ATTACH dst`, so the target file is never created. Refusals fire in `_reject_unsupported_objects` and `_capture_hnsw_recipes`.
+- `compact_database` now refuses sources with user-defined types, generated columns, self-referential foreign keys, or HNSW indexes on non-bare-column expressions, raising `ValueError`. See architecture.md §Not supported (and why).
 - `replace_with_compacted` documents `OSError` as a raised exception (the move from `compacted` to `source` failing even via the `shutil.move` fallback).
 - `compact_database` and `restore_indexes` document `RuntimeError` for the case where the bundled `vss` extension binary cannot be located.
 
@@ -23,7 +23,7 @@
 
 ### Changed
 
-- `compact_database` sets DuckDB's `temp_directory` to `<target.parent>/.chunkhound-compactor.tmp` so spill stays on the destination filesystem. The default is the CWD-relative `.tmp`, which can fill a small working FS while the destination disk has room.
+- `compact_database` co-locates DuckDB spill with the target's filesystem (`temp_directory` beside the target). See architecture.md §Compaction pipeline.
 - README narrowed the "fully generic / works on any single-schema DuckDB file" claim to ChunkHound-shaped inputs; other shapes are refused at the front gate rather than rebuilt with silent loss.
 - `docs/architecture.md` corrects the imprecise "drops HNSW on each write batch" claim to ChunkHound's actual `insert_embeddings_batch` 50-row threshold and cites [duckdb/duckdb#16785](https://github.com/duckdb/duckdb/issues/16785) for the `COPY FROM DATABASE` FK race.
 - `docs/out-of-scope.md` corrects the `pragma_hnsw_index_info()` column listing and documents why expression HNSW keys and self-referential FKs are out of scope.

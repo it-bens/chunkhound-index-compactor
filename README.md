@@ -1,6 +1,6 @@
 # ChunkHound Index Compactor
 
-Compact a [DuckDB](https://duckdb.org) database by rebuilding it into a fresh file. The motivating and supported use case is shrinking a bloated [ChunkHound](https://github.com/chunkhound/chunkhound) index, whose drop-and-recreate HNSW churn (above its 50-row write-batch threshold) leaves large amounts of orphaned-but-counted blocks. The rebuild pipeline is structurally generic and works on other single-schema DuckDB files, but only ChunkHound-shaped inputs are promised: any shape outside that scope is refused at the front gate (see [§Not Supported](#-not-supported)) rather than silently dropped or rebuilt with loss.
+Compact a [DuckDB](https://duckdb.org) database by rebuilding it into a fresh file. The motivating and supported use case is shrinking a bloated [ChunkHound](https://github.com/chunkhound/chunkhound) index, whose drop-and-recreate HNSW churn (above its 50-row write-batch threshold) leaves large amounts of orphaned-but-counted blocks. The rebuild pipeline is structurally generic and works on other single-schema DuckDB files, but only ChunkHound-shaped inputs are promised: any shape outside that scope is refused at the front gate (see the Not Supported section below) rather than silently dropped or rebuilt with loss.
 
 ## ⚡ Quick Start
 
@@ -64,7 +64,7 @@ backup = replace_with_compacted(result.source, result.target)
 ```
 
 `compact_database()` raises:
-- `ValueError`: `target` resolves to the same path as `source`; the source has a non-`main` schema, a view, a user-defined type, a generated column, a self-referential FK, an HNSW index on a non-bare-column expression; or the FK graph has a cycle.
+- `ValueError`: `target` resolves to the same path as `source`, the FK graph has a cycle, or the source has a shape refused at the front gate (see the Not Supported section below).
 - `FileNotFoundError`: `source` does not exist.
 - `FileExistsError`: `target` already exists.
 - `RuntimeError`: the bundled `vss` extension binary cannot be located (only reachable if the source contains an HNSW index).
@@ -81,7 +81,7 @@ backup = replace_with_compacted(result.source, result.target)
 
 ## 🚫 Not Supported
 
-The tool fails hard rather than silently dropping anything it cannot reproduce. Each refusal fires before the target file is created.
+The tool fails hard rather than silently dropping anything it cannot reproduce.
 
 - Non-`main` schemas and views (raise `ValueError`).
 - User-defined types, generated columns, self-referential foreign keys, and HNSW indexes on non-bare-column expressions (raise `ValueError`).
