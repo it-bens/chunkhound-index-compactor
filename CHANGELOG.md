@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.2.0] - 2026-05-21
 
 ### Fail-hard
 
@@ -24,7 +24,7 @@
 ### Changed
 
 - `compact_database` co-locates DuckDB spill with the target's filesystem (`temp_directory` beside the target). See architecture.md §Compaction pipeline.
-- README narrowed the "fully generic / works on any single-schema DuckDB file" claim to ChunkHound-shaped inputs; other shapes are refused at the front gate rather than rebuilt with silent loss.
+- README narrowed the "fully generic / works on any single-schema DuckDB file" claim to ChunkHound-shaped inputs; other shapes are refused at the front gate rather than rebuilt with silent loss. The published package description (`pyproject.toml`) dropped its "(ChunkHound index or otherwise)" parenthetical to match.
 - `docs/architecture.md` corrects the imprecise "drops HNSW on each write batch" claim to ChunkHound's actual `insert_embeddings_batch` 50-row threshold, removes the wrong COMMENT ON claim (see out-of-scope.md §Table and column comments for the actual drop behavior), and cites [duckdb/duckdb#16785](https://github.com/duckdb/duckdb/issues/16785) for the `COPY FROM DATABASE` FK race.
 - `docs/architecture.md` §Not supported collapsed to one-line pointers at `out-of-scope.md`, so per-case refusal reasoning lives on a single surface.
 - `docs/out-of-scope.md` promoted to the single per-topic catalog covering refused source shapes, silently-dropped metadata (HNSW tuning beyond `metric`, table and column comments), latent code edges (quoted referenced tables in `_FK_REFERENCES_RE`), and rejected alternative approaches. Each section owns both the why-not and the fix shape.
