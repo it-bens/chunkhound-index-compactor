@@ -8,6 +8,8 @@ DuckDB's single-file format does not reclaim disk space after deletes or drops, 
 
 What gets reclaimed is not free space. `pragma_database_size` on a real ChunkHound index reports almost no free blocks: the motivating workload showed 4 769 560 used vs 173 free on a 1.1 TiB file (see [benchmarks.md](benchmarks.md)). The bloat is *orphaned used blocks*: old HNSW serializations left behind by ChunkHound's drop-and-recreate index churn on write batches that meet its size threshold (50 rows by default). The `vss` extension re-serializes the whole HNSW on every CHECKPOINT, so each such batch leaves the prior serialization orphaned. The catalog counts them as used because no live object references them; only a fresh-file rewrite drops them, because the rewrite copies live catalog objects only.
 
+This churn is not a one-off. Every incremental index run that crosses the batch threshold orphans another HNSW serialization, so a compacted file re-bloats as ChunkHound indexes new code.
+
 ## Compaction pipeline
 
 When you invoke `compact_database(source, target, *, skip_hnsw=False)`:

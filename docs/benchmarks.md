@@ -20,6 +20,12 @@ A ChunkHound index of [`shopware/shopware`](https://github.com/shopware/shopware
 - **`--skip-hnsw` is the small-RAM unlock.** Peak stays around 4 GiB regardless of source HNSW size because no HNSW gets built. Only the recipe table is written. Output size drops by the HNSW footprint.
 - **Output size on a clean source can be marginally larger than `COPY`.** The fixture cross-check (below) showed source 203.5 MiB then COPY 50.0 MiB then full rebuild 50.5 MiB then `--skip-hnsw` 31.5 MiB. Tombstone reclamation only pays on a churned source; the bloat-reclamation lever on a clean source is dropping the index, not the rebuild itself.
 
+## Re-bloat over the index lifecycle
+
+The 4.81 GiB output of the run above became the live index, not an archive. ChunkHound kept indexing new files into it (incremental, never a force-reindex), and the file grew back to 204.5 GiB. A full rebuild took it to 5.2 GiB in 77 s, the same shape as the first pass on this source.
+
+Treat this as anecdote, not a controlled measurement. ChunkHound went from 5.0 to 5.1 and its config changed between the two runs, and the 204.5 GiB input is that prior compacted output after reuse, not the 1.25 TB source measured a second time. What it supports is qualitative: the bloat recurs under ordinary incremental indexing, by the same churn described in [architecture.md §Why a custom rebuild](architecture.md#why-a-custom-rebuild-instead-of-copy-from-database). Peak RAM was not captured on this run.
+
 ## Fixture cross-check, 203.5 MiB ChunkHound index
 
 `tests/fixtures/shopware-cli-chunks.duckdb`: ChunkHound index of [`shopware/shopware-cli`](https://github.com/shopware/shopware-cli). 4 878 embeddings at dimension 1024, cosine. Small enough that `COPY FROM DATABASE` accidentally succeeds on it (the FK race manifests only at scale). Reproducible by running this repo's tests.

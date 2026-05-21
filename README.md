@@ -2,6 +2,8 @@
 
 Compact a [DuckDB](https://duckdb.org) database by rebuilding it into a fresh file. The motivating and supported use case is shrinking a bloated [ChunkHound](https://github.com/chunkhound/chunkhound) index, whose drop-and-recreate HNSW churn (above its 50-row write-batch threshold) leaves large amounts of orphaned-but-counted blocks. The rebuild pipeline is structurally generic and works on other single-schema DuckDB files, but only ChunkHound-shaped inputs are promised: any shape outside that scope is refused at the front gate (see the Not Supported section below) rather than silently dropped or rebuilt with loss.
 
+That bloat comes back as ChunkHound keeps indexing, so compaction is periodic maintenance rather than a one-time cleanup.
+
 ## ⚡ Quick Start
 
 ```bash
