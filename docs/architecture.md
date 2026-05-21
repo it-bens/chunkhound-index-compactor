@@ -49,7 +49,7 @@ That asymmetry is what makes `--skip-hnsw` a small-RAM unlock and `restore` a se
 |---------------|--------------------------------------------------|
 | `index_name`  | Name of the stripped HNSW index                  |
 | `table_name`  | Table the index was on                           |
-| `column_name` | Indexed column expression                        |
+| `column_name` | Indexed column (bare identifier)                 |
 | `metric`      | Distance metric recovered at compaction time     |
 
 `restore_indexes(database)` opens the file read-write, fails hard if `_compactor_hnsw_recipe` is absent (the file is not a `--skip-hnsw` artifact), `LOAD`s `vss`, and recreates each recipe index that does not already exist (idempotent) with its recorded metric. It returns `RestoreResult(database, restored)` where `restored` is the tuple of index names created this run.

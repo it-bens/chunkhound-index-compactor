@@ -337,10 +337,12 @@ def test_compact_rejects_self_referential_fk(tmp_path: Path) -> None:
     assert not target.exists()
 
 
-def test_compact_rejects_expression_hnsw_column(tmp_path: Path) -> None:
+@pytest.mark.parametrize("skip_hnsw", [False, True])
+def test_compact_rejects_expression_hnsw_column(tmp_path: Path, skip_hnsw: bool) -> None:
     # _HNSW_COLUMN_RE truncates an expression key at the first inner ')'.
     # Without refusing, --skip-hnsw records a malformed column string and
-    # `restore` later crashes on the unbalanced DDL.
+    # `restore` later crashes on the unbalanced DDL. The gate fires in
+    # _capture_hnsw_recipes, before the skip_hnsw branch, so both paths refuse.
     src = tmp_path / "expr-hnsw.duckdb"
     vss_path = _bundled_extension_path("vss")
     conn = duckdb.connect(str(src))
@@ -359,7 +361,7 @@ def test_compact_rejects_expression_hnsw_column(tmp_path: Path) -> None:
 
     target = tmp_path / "out.duckdb"
     with pytest.raises(ValueError, match="non-column expression"):
-        compact_database(src, target)
+        compact_database(src, target, skip_hnsw=skip_hnsw)
     assert not target.exists()
 
 
