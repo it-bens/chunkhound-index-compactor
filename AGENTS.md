@@ -19,7 +19,7 @@ chunkhound-index-compactor/
 ├── docs/
 │   ├── architecture.md           # pipeline, RAM asymmetry, recipe table, vss bundling, ChunkHound compat, refused inputs
 │   ├── benchmarks.md             # empirical baseline (1.25 TB ChunkHound index + fixture cross-check)
-│   └── out-of-scope.md           # rejected approaches (DiskANN, hnsw_compact_index, M/M0/ef_*, ...)
+│   └── out-of-scope.md           # refused shapes, dropped metadata, latent edges, rejected approaches + fix shapes
 ├── src/chunkhound_index_compactor/
 │   ├── __init__.py               # public API re-exports
 │   ├── __main__.py               # python -m entry
@@ -61,7 +61,7 @@ chunkhound-index-compactor/
 | New public export | `core.py` + `__init__.py` `__all__` |
 | Pipeline narrative, design rationale, refused-input reasoning | `docs/architecture.md` (not here) |
 | Empirical baseline / scale numbers | `docs/benchmarks.md` (not here) |
-| Rejected approaches (DiskANN, hnsw_compact_index, M/M0/ef_*, etc.) | `docs/out-of-scope.md` (not here) |
+| Refused shapes, dropped metadata, latent edges, rejected approaches, and the fix shape per item | `docs/out-of-scope.md` (not here) |
 
 ## Invariants enforced by code
 

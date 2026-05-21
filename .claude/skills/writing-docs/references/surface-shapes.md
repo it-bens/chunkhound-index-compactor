@@ -1,6 +1,6 @@
 # Surface Shapes (reference)
 
-Two human-prose surfaces in scope here: root `README.md` and `docs/architecture.md`. AGENTS.md is covered by `references/agents-md.md`; code comments live with `writing-python-code`.
+Three human-prose surfaces in scope here: root `README.md`, `docs/architecture.md`, and `docs/out-of-scope.md`. AGENTS.md is covered by `references/agents-md.md`; code comments live with `writing-python-code`.
 
 ## Root README
 
@@ -24,7 +24,7 @@ Two human-prose surfaces in scope here: root `README.md` and `docs/architecture.
 
 **Audience:** a reader who has already read the README and is now investigating internals.
 
-**Job:** mechanism, not pitch. Why the implementation looks the way it does; what each step does; what each constant means; why each not-supported case is rejected.
+**Job:** mechanism, not pitch. Why the implementation looks the way it does; what each step does; what each constant means. Per-case reasoning for refused / dropped / not-pursued items lives in `out-of-scope.md`; architecture.md's §Not supported section enumerates the refused cases briefly and points at `out-of-scope.md §<topic>` for each.
 
 **Sections (in order):**
 
@@ -32,11 +32,30 @@ Two human-prose surfaces in scope here: root `README.md` and `docs/architecture.
 2. Compaction pipeline (numbered steps; what each step does)
 3. Internal data structures (recipe table schema, key constants)
 4. Extension bundling (how `vss` is loaded; why bundled)
-5. Not supported (and why) — one bullet per refused case, with the reasoning that earned the refusal
+5. Not supported (and why) — brief enumeration of refused cases, each pointing at the matching `out-of-scope.md §<topic>` for full reasoning and fix shape
 
 **No self-describing intro.** Do not open with "This document describes how X works. For Y see README." The H1 already names the topic. Cross-references attach inline to the paragraph that benefits from them, not to a meta-preface.
 
 **No content the README already carries.** If a sentence appears in the README, architecture.md links to it via `(README §<heading>)` rather than restating. The README owns the pitch and quick-start; architecture.md owns the mechanism.
+
+**No per-case reasoning out-of-scope.md owns.** §Not supported is the enumeration surface; the deep reasoning lives in out-of-scope.md. A bullet here is "Generated columns. (see out-of-scope.md §Generated columns)" not a paragraph restating why generated columns are refused.
+
+## docs/out-of-scope.md
+
+**Audience:** a maintainer answering "why don't we handle X?" or "what would it take to broaden scope to X?".
+
+**Job:** per-topic catalog. Each refusal, drop, latent edge, or rejected approach gets one `##` section that owns both the why-not AND the fix shape (when one applies). One concept, one section, both aspects on the same surface.
+
+**Section shape (each `##` heading):**
+
+1. Why-not prose: one or two paragraphs naming the refusal mechanism (catalog function, regex, raise site) and the reason scope was not widened.
+2. `**Fix shape.**` lead-in (optional): a numbered list of concrete steps to close the gap, followed by a regression-test sentence. Omit when no fix shape applies (structural property, UX decision); say so in one sentence instead.
+
+**Structure is flat.** No `###`-level groupings of topics. Order conveys grouping: refused source shapes, then silently-dropped metadata, then latent code edges, then alternative approaches considered.
+
+**Do not split a topic across files.** A separate "fix-shape" sibling doc creates triangular duplication: the topic appears on both surfaces with overlapping prose, and single-surface discipline does not survive normal edits. Both aspects of one topic stay in one section here.
+
+**No self-describing intro.** Same rule as README and architecture.md. The H1 + the opening one-sentence frame are the whole intro.
 
 ## §Contracts H/R/NC pattern (when an invariant emerges)
 
@@ -67,4 +86,4 @@ Every invariant has rows in all three buckets, even if a bucket has only "none" 
 
 A §Limitations heading is a §Contracts entry in disguise whenever the named constraint is actively enforced by code. The signal: a paragraph that says "the tool does not handle X" right next to a function that detects, refuses, or rewrites X. The detection is the contract; "limitation" is the wrong frame.
 
-The current "Not supported" section in architecture.md sits at the boundary: the rules are listed with their reasoning, and the code currently enforces each one with `ValueError`. If the list grows beyond three cases or starts carrying handled-but-degraded entries, promote to a §Contracts section using H/R/NC.
+The current "Not supported" section in architecture.md is a brief enumeration of refused cases with pointers into `out-of-scope.md` (where the per-case reasoning + fix shape live). If a new case is handled-but-degraded (the code does X partially, refuses Y) so the refused / dropped / considered framing in out-of-scope.md doesn't fit cleanly, promote to a §Contracts section using H/R/NC instead.

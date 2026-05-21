@@ -78,7 +78,7 @@ The tool is structurally generic, but it was built against ChunkHound and a few 
 
 ## Not supported (and why)
 
-These cases the code refuses or cannot reproduce. The first five are front-gate refusals in `_reject_unsupported_objects` and `_capture_hnsw_recipes`; each fires before `ATTACH dst`, so the target file is never created when one trips.
+These cases the code refuses. The first five are front-gate refusals in `_reject_unsupported_objects` and `_capture_hnsw_recipes`; each fires before `ATTACH dst`, so the target file is never created when one trips.
 
 - **Non-`main` schemas and views.** Reproducing schemas requires `CREATE SCHEMA` ordering and qualified `REFERENCES` rewriting; reproducing views requires resolving them against the rebuilt tables. Silently dropping them would corrupt the user's data model.
 - **User-defined types.** `duckdb_tables().sql` inlines ENUM/STRUCT/alias definitions when emitting CREATE TABLE, so without refusing the user's `CREATE TYPE` would be dropped silently and downstream `value::<type>` casts against the rebuilt DB would fail.
@@ -86,7 +86,5 @@ These cases the code refuses or cannot reproduce. The first five are front-gate 
 - **Self-referential foreign keys.** `duckdb_tables().sql` drops the FK clause and leaves a trailing comma in the column list. Lenient DuckDB parsers lost the constraint silently; stricter ones crashed at `CREATE TABLE`. Refusing turns either outcome into a clear pre-target error.
 - **HNSW indexes on non-bare-column expressions.** `_HNSW_COLUMN_RE` is non-greedy and truncates the captured key at the first inner `)`, so an expression like `CAST(col AS FLOAT[N])` would round-trip as malformed DDL. Refusing keeps the recipe round-trip honest and removes the deferred `restore`-time crash.
 - **Foreign-key cycles.** Topological order is undefined for a cycle; deferring constraints is not generally portable across DuckDB versions. `_topological_order` raises `ValueError`.
-- **HNSW tuning parameters other than `metric`.** `M`, `M0`, `ef_construction`, `ef_search` are not surfaced by any pragma, so they cannot be recovered from a built index. If you depended on tuned values, recreate those indexes manually after compaction.
-- **Table and column comments.** Comments are stored in the `comment` column of `duckdb_tables()` / `duckdb_columns()`, not in the `.sql` DDL the rebuild captures, so they are dropped. ChunkHound does not use comments (verified against the production index), so this affects no real workload.
 
-For approaches that were considered and deliberately not pursued (DiskANN, `PRAGMA hnsw_compact_index`, schema evolution, out-of-core HNSW, resume after partial failure, `--memory-limit` / `--temp-dir` flags), see [out-of-scope.md](out-of-scope.md).
+For per-case reasoning, metadata the rebuild drops rather than refuses (HNSW tuning beyond `metric`, table and column comments), latent edges (quoted FK identifiers), rejected approaches (DiskANN, `PRAGMA hnsw_compact_index`, schema evolution, out-of-core HNSW, resume after partial failure, `--memory-limit` / `--temp-dir` flags), and the fix shape if scope ever widens, see [out-of-scope.md](out-of-scope.md).

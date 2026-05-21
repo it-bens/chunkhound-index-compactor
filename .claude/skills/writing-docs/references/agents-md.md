@@ -1,6 +1,6 @@
 # AGENTS.md (reference)
 
-AGENTS.md is a pointer-only map into adjacent human prose surfaces (root README, docs/architecture.md). It is consumed by LLM coding tools (Claude Code, Codex, similar) and is opaque to humans by policy. No human-facing pitch, no welcome copy, no narrative motivation. Every bullet is a pointer `(README §X)` / `(architecture.md §Y)` or it gets deleted. Hard ceiling: 30 lines outside section headers, 3 to 8 bullets per section.
+AGENTS.md is a pointer-only map into adjacent human prose surfaces (root README, docs/architecture.md, docs/out-of-scope.md). It is consumed by LLM coding tools (Claude Code, Codex, similar) and is opaque to humans by policy. No human-facing pitch, no welcome copy, no narrative motivation. Every bullet is a pointer `(README §X)` / `(architecture.md §Y)` / `(out-of-scope.md §Z)` or it gets deleted. Hard ceiling: 30 lines outside section headers, 3 to 8 bullets per section.
 
 ## LLM-only discipline
 
@@ -52,7 +52,7 @@ The `## Layout` / `## Module → symbols` / `## When to modify` sections carry n
 
 ## Bullet discipline (`## Invariants enforced by code`)
 
-Every bullet ends with `(README §<heading>)` or `(architecture.md §<heading>)` pointing at a real heading. The bullet states the rule; the linked surface carries the *why*.
+Every bullet ends with `(README §<heading>)`, `(architecture.md §<heading>)`, or `(out-of-scope.md §<heading>)` pointing at a real heading. The bullet states the rule; the linked surface carries the *why*.
 
 - **No motivation in the bullet.** Motivation lives in README or architecture.md. AGENTS.md only points at it.
 - **Front-load by stakes.** The first bullet under `## Invariants enforced by code` carries the most attention weight. Order by stakes, not by source-file order.
@@ -85,7 +85,7 @@ Line numbers shift the moment anyone reformats the file. Section names survive h
 
 Three questions, one bullet at a time:
 
-1. **Shape.** Does the bullet end with `(README §<heading>)` or `(architecture.md §<heading>)` pointing at a real heading, and avoid explaining *why* in the bullet itself?
+1. **Shape.** Does the bullet end with `(README §<heading>)`, `(architecture.md §<heading>)`, or `(out-of-scope.md §<heading>)` pointing at a real heading, and avoid explaining *why* in the bullet itself?
 2. **Provenance.** Can the rule trace to a specific incident, a recurring class of bug the project has corrected, or a load-bearing test invariant? "We might want this someday" is not provenance.
 3. **Visibility.** If the rule were violated tomorrow, would the failure be visible — a test breaks, a guarantee voids, a contract refuses — or invisible (a stylistic preference)? Invisible rules are noise.
 
@@ -93,7 +93,7 @@ Outcomes:
 
 - All three pass → proceed.
 - No pointer → delete the bullet, or rewrite as a pointer.
-- Explains motivation → move the motivation to README or architecture.md; leave only the rule + pointer.
+- Explains motivation → move the motivation to README, architecture.md, or out-of-scope.md; leave only the rule + pointer.
 - Pointer targets a vague or missing heading → fix the heading first (heading-predicts-content discipline), then repoint.
 - No traceable provenance → do not add the rule. Wait for evidence to surface.
 - Violation would be invisible → drop the rule; AGENTS.md is for warnings, not preferences.

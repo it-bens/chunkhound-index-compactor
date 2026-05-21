@@ -1,13 +1,13 @@
 ---
 name: writing-docs
-description: Use when writing or editing any chunkhound-index-compactor documentation surface — root `README.md`, `CONTRIBUTING.md`, `docs/architecture.md`, or `AGENTS.md`.
+description: Use when writing or editing any chunkhound-index-compactor documentation surface — root `README.md`, `CONTRIBUTING.md`, `docs/architecture.md`, `docs/out-of-scope.md`, or `AGENTS.md`.
 ---
 
 # Writing Docs
 
-The repository has four documentation surfaces and one invariant: **no sentence appears on more than one surface**.
+The repository has five documentation surfaces and one invariant: **no sentence appears on more than one surface**.
 
-- **Human prose** — root `README.md`, `CONTRIBUTING.md`, `docs/architecture.md`. Audience is an experienced Python developer reading for task-fit.
+- **Human prose** — root `README.md`, `CONTRIBUTING.md`, `docs/architecture.md`, `docs/out-of-scope.md`. Audience is an experienced Python developer reading for task-fit.
 - **LLM pointer map** — root `AGENTS.md`. Audience is the coding agent navigating the project before edits. AGENTS.md is opaque to humans by policy.
 
 Out of scope: code comments (use the `writing-python-code` skill — point-of-use *why* lives at the call site, classified per-comment during code work) and procedural artifacts under `docs/superpowers/`.
@@ -65,8 +65,9 @@ Name the single surface this content belongs on:
 
 - **Root `README.md`** — pitch, install, CLI usage, library usage, not-supported summary, development pointer, license. User-facing.
 - **Root `CONTRIBUTING.md`** — setup, local checks, CI workflow descriptions, release process. Contributor-facing.
-- **`docs/architecture.md`** — pipeline narrative, internal invariants, recipe table, extension bundling, per-case reasoning for not-supported items. Read after the README.
-- **Root `AGENTS.md`** — LLM-targeted pointer map into README, CONTRIBUTING.md, and architecture.md. Pointer-only; no human prose.
+- **`docs/architecture.md`** — pipeline narrative, internal invariants, recipe table, extension bundling. §Not supported is a brief enumeration of refused cases pointing into `out-of-scope.md` for per-case detail. Read after the README.
+- **`docs/out-of-scope.md`** — per-topic catalog of refused source shapes, silently-dropped metadata, latent code edges, and rejected alternative approaches. Each `##` section owns both the why-not AND the fix shape if one applies.
+- **Root `AGENTS.md`** — LLM-targeted pointer map into README, CONTRIBUTING.md, architecture.md, and out-of-scope.md. Pointer-only; no human prose.
 
 If the content is a point-of-use *why* in code (a comment / docstring) or a procedural plan/spec under `docs/superpowers/`, this skill does not apply. STOP and use the correct surface authoring path.
 
@@ -86,7 +87,7 @@ The next steps branch by surface type. Apply only the branch that matches.
 
 Load `references/writing-style.md` for the keep-vs-strip examples for numbers, the worked rejections of consumer-readability heuristics, and the heading-predicts-content failure modes.
 
-**AGENTS.md.** Write pointer bullets, not prose. Every bullet under `## Before editing` ends with `(README §<heading name>)`, `(CONTRIBUTING.md §<heading name>)`, or `(architecture.md §<heading name>)` pointing at a real heading. No motivation in the bullet — motivation lives in those surfaces; AGENTS.md only points at it. Front-load by stakes: the first bullet under `## Before editing` carries the most attention weight, so order by stakes rather than by source-file order. Cross-refs use `§<heading name>`, never line numbers, never anchor links — headings survive edits, line numbers don't.
+**AGENTS.md.** Write pointer bullets, not prose. Every bullet under `## Before editing` ends with `(README §<heading name>)`, `(CONTRIBUTING.md §<heading name>)`, `(architecture.md §<heading name>)`, or `(out-of-scope.md §<heading name>)` pointing at a real heading. No motivation in the bullet — motivation lives in those surfaces; AGENTS.md only points at it. Front-load by stakes: the first bullet under `## Before editing` carries the most attention weight, so order by stakes rather than by source-file order. Cross-refs use `§<heading name>`, never line numbers, never anchor links — headings survive edits, line numbers don't.
 
 The `references/agents-md.md` reference loaded above carries the banned-pattern examples (no human-facing motivation, no narrative intros, no line-numbered cross-refs) and the worked WRONG/CORRECT pairs.
 
@@ -104,7 +105,7 @@ Rewrite affected text and re-check. Do not exit this step until the draft passes
 
 Three cross-surface checks. Run them after the surface-specific work above is complete:
 
-**Single-surface principle.** No sentence appears on more than one surface. For each paragraph (human prose) or bullet (AGENTS.md) in the diff, scan whether the same content already lives on another surface (README / CONTRIBUTING.md / architecture.md / AGENTS.md / code comments). If it does, replace this one with a `(README §X)` or `(architecture.md §Y)` pointer, or delete the duplicate at the other surface — keep the version on the surface that already owns the content. Common drifts: a README install line restated under architecture.md, a pipeline step paraphrased in AGENTS.md, an AGENTS.md bullet that summarizes its README pointer instead of pointing at it.
+**Single-surface principle.** No sentence appears on more than one surface. For each paragraph (human prose) or bullet (AGENTS.md) in the diff, scan whether the same content already lives on another surface (README / CONTRIBUTING.md / architecture.md / out-of-scope.md / AGENTS.md / code comments). If it does, replace this one with a `(README §X)` or `(architecture.md §Y)` or `(out-of-scope.md §Z)` pointer, or delete the duplicate at the other surface — keep the version on the surface that already owns the content. Common drifts: a README install line restated under architecture.md, a pipeline step paraphrased in AGENTS.md, an architecture.md bullet that restates a per-case reasoning out-of-scope.md owns, an AGENTS.md bullet that summarizes its README pointer instead of pointing at it.
 
 **Cross-ref integrity.** If you renamed any heading on this surface, search for `§<old name>` across every surface type and update every cross-ref in the same edit. AGENTS.md cross-refs README / architecture.md headings by name, so a heading rename without an AGENTS.md sweep silently breaks the pointer map.
 
