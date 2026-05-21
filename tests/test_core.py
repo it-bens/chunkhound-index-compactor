@@ -35,20 +35,6 @@ def test_compact_returns_result(populated_db: Path, tmp_path: Path) -> None:
     assert row[0] == 100
 
 
-def test_compact_roundtrips_data(populated_db: Path, tmp_path: Path) -> None:
-    target = tmp_path / "out.duckdb"
-    compact_database(populated_db, target)
-
-    conn = duckdb.connect(str(target), read_only=True)
-    try:
-        row = conn.execute("SELECT count(*) FROM items").fetchone()
-    finally:
-        conn.close()
-
-    assert row is not None
-    assert row[0] == 100
-
-
 def test_compact_removes_unused_spill_dir(populated_db: Path, tmp_path: Path) -> None:
     # The spill dir is created beside the target up front; when DuckDB never
     # spills (small source) it must not be left behind.

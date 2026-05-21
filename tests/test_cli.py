@@ -6,6 +6,8 @@ import duckdb
 import pytest
 from typer.testing import CliRunner
 
+from chunkhound_index_compactor import cli as cli_mod
+from chunkhound_index_compactor import core
 from chunkhound_index_compactor.cli import app
 from chunkhound_index_compactor.core import _bundled_extension_path
 
@@ -128,8 +130,6 @@ def test_cli_compact_surfaces_missing_vss_extension_cleanly(
     # A missing bundled vss binary surfaces as RuntimeError from
     # _bundled_extension_path. The CLI must turn that into a clean `error:`
     # line, not a stack trace.
-    from chunkhound_index_compactor import core
-
     def fake(_ext: str) -> Path:
         raise RuntimeError("bundled vss missing for test")
 
@@ -150,8 +150,6 @@ def test_cli_restore_surfaces_missing_vss_extension_cleanly(
     target = tmp_path / "out.duckdb"
     skip = runner.invoke(app, [str(hnsw_db), str(target), "--skip-hnsw"])
     assert skip.exit_code == 0, skip.output
-
-    from chunkhound_index_compactor import core
 
     def fake(_ext: str) -> Path:
         raise RuntimeError("bundled vss missing for restore test")
@@ -213,8 +211,6 @@ def test_cli_replace_handles_os_error_cleanly(
     # A cross-device or filesystem-level failure in replace_with_compacted
     # surfaces as OSError. The CLI must print a clean `error:` line, not a
     # stack trace.
-    from chunkhound_index_compactor import cli as cli_mod
-
     def boom(_source: Path, _target: Path) -> Path:
         raise OSError("simulated cross-device replace failure")
 

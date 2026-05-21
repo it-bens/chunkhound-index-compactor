@@ -142,9 +142,11 @@ def test_rebuild_preserves_metric_on_real_fixture(shopware_cli_index: Path, tmp_
 
 @pytest.fixture
 def two_hnsw_db(tmp_path: Path) -> Path:
-    # Mirrors the real ChunkHound shape: two embedding tables of different
-    # dimensions, both indexed with cosine HNSW (verified at v5.1.0 against
-    # the 1.14 TiB production index).
+    """Two embedding tables (1024 + 1536 dims), each with a cosine HNSW index.
+
+    Mirrors the real ChunkHound shape (verified at v5.1.0 against the 1.14 TiB
+    production index).
+    """
     db_path = tmp_path / "two_hnsw.duckdb"
     conn = duckdb.connect(str(db_path))
     try:
