@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 from pathlib import Path
 
 import duckdb
@@ -8,6 +9,7 @@ import pytest
 from chunkhound_index_compactor import (
     CompactionResult,
     compact_database,
+    core,
     replace_with_compacted,
 )
 
@@ -107,12 +109,13 @@ def test_replace_falls_back_when_second_rename_crosses_devices(
     original_bytes = populated_db.read_bytes()
 
     original_rename = Path.rename
-    state = {"calls": 0}
+    calls = 0
 
     def selective_rename(self: Path, dst: Path) -> Path:
-        state["calls"] += 1
-        if state["calls"] == 2:
-            raise OSError(18, "Invalid cross-device link")
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise OSError(errno.EXDEV, "Invalid cross-device link")
         return original_rename(self, dst)
 
     monkeypatch.setattr(Path, "rename", selective_rename)
@@ -123,6 +126,35 @@ def test_replace_falls_back_when_second_rename_crosses_devices(
     assert backup.read_bytes() == original_bytes
     assert populated_db.is_file()
     assert not target.exists()
+
+
+def test_replace_raises_when_shutil_move_also_fails(
+    populated_db: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # When the cross-device move itself fails (e.g. the destination fills up),
+    # replace_with_compacted documents OSError as the final raise. It must
+    # propagate, not be swallowed into a silent half-swapped state.
+    target = tmp_path / "out.duckdb"
+    compact_database(populated_db, target)
+
+    original_rename = Path.rename
+    calls = 0
+
+    def selective_rename(self: Path, dst: Path) -> Path:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise OSError(errno.EXDEV, "Invalid cross-device link")
+        return original_rename(self, dst)
+
+    def failing_move(_src: str, _dst: str) -> str:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(Path, "rename", selective_rename)
+    monkeypatch.setattr(core.shutil, "move", failing_move)
+
+    with pytest.raises(OSError, match="disk full"):
+        replace_with_compacted(populated_db, target)
 
 
 def test_replace_refuses_existing_backup(populated_db: Path, tmp_path: Path) -> None:

@@ -13,6 +13,7 @@ strips the `WITH (...)` clause).
 from __future__ import annotations
 
 import contextlib
+import errno
 import re
 import shutil
 from dataclasses import dataclass
@@ -439,11 +440,13 @@ def replace_with_compacted(source: Path, compacted: Path) -> Path:
     source.rename(backup)
     try:
         compacted.rename(source)
-    except OSError:
-        # `compacted` may live on a different filesystem from `source` (the
-        # user passed an explicit target on another mount). `Path.rename`
-        # raises EXDEV for cross-device moves; `shutil.move` copies + deletes
-        # across filesystems.
+    except OSError as e:
+        if e.errno != errno.EXDEV:
+            raise
+        # `compacted` lives on a different filesystem from `source` (the user
+        # passed an explicit target on another mount). `Path.rename` raises
+        # EXDEV for cross-device moves; `shutil.move` copies + deletes across
+        # filesystems.
         shutil.move(str(compacted), str(source))
     return backup
 

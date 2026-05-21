@@ -53,7 +53,7 @@ chunkhound-index-compactor/
 | Rebuild SQL sequence | `core.py` → `compact_database()` |
 | FK ordering | `core.py` → `_topological_order()` / `_referenced_tables()` |
 | Front-gate refusal of unsupported source shapes | `core.py` → `_reject_unsupported_objects()` (schemas, views, user-defined types, generated columns, self-ref FKs) and `_capture_hnsw_recipes()` (expression HNSW columns) |
-| Cross-filesystem replace fallback | `core.py` → `replace_with_compacted()` (`shutil.move` on `OSError`) |
+| Cross-filesystem replace fallback | `core.py` → `replace_with_compacted()` (`shutil.move` on EXDEV) |
 | DuckDB spill location | `core.py` → `compact_database()` (`SET temp_directory = <target.parent>/.chunkhound-compactor.tmp`) |
 | HNSW metric recovery / recipe table schema | `core.py` → `_capture_hnsw_recipes()` / `_write_recipe_table()` / `RECIPE_TABLE` |
 | Index restore | `core.py` → `restore_indexes()` |
