@@ -26,7 +26,7 @@ chunkhound-index-compactor/
 │   ├── cli.py                    # Typer app
 │   └── core.py                   # compaction logic
 └── tests/
-    ├── conftest.py               # fixtures: populated_db, bloated_db, hnsw_db, shopware_cli_index
+    ├── conftest.py               # fixtures: populated_db, bloated_db, hnsw_db, cosine_hnsw_db, shopware_cli_index
     ├── fixtures/                 # committed real-world DB artifacts (provenance in conftest.py)
     ├── test_core.py
     ├── test_cli.py
