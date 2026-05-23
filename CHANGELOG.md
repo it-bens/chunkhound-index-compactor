@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-05-24
+
 ### Added
 
 - Add a GitHub Action that runs `compact` in a workflow without requiring uv or a Python toolchain in the calling job. The action provisions a venv from the runner's preinstalled Python and accepts the same `index-path`, `target`, `replace`, and `skip-hnsw` arguments as the CLI.
