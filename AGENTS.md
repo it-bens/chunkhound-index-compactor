@@ -82,4 +82,4 @@ chunkhound-index-compactor/
 
 ## Runtime deps
 
-- Authoritative constraints at `pyproject.toml`. Load-bearing context: `duckdb` range matches `chunkhound` to stay file-format-compatible; `duckdb-extension-vss>=1.5.2` pins `duckdb==1.5.2` transitively. Python `>=3.10,<3.14`.
+- Authoritative constraints at `pyproject.toml`. Load-bearing context: `duckdb` range matches `chunkhound` to stay file-format-compatible; `duckdb-extension-vss>=1.5.2` pins `duckdb==1.5.2` transitively. Python `>=3.10,<3.15`.

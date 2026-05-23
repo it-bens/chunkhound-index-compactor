@@ -5,6 +5,7 @@
 ### Added
 
 - Add a GitHub Action that runs `compact` in a workflow without requiring uv or a Python toolchain in the calling job. The action provisions a venv from the runner's preinstalled Python and accepts the same `index-path`, `target`, `replace`, and `skip-hnsw` arguments as the CLI.
+- Add Python 3.14 support. The `requires-python` ceiling moves to `<3.15`, and CI runs the test suite on 3.14.
 
 ## [0.4.0] - 2026-05-23
 

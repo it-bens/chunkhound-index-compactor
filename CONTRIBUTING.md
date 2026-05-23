@@ -8,7 +8,7 @@ npm install              # Node toolchain (prettier; one-time per clone)
 uv run pre-commit install  # wires the git pre-commit hook (one-time per clone)
 ```
 
-Python 3.10 through 3.13 supported. macOS and Linux are tested.
+Python 3.10 through 3.14 supported. macOS and Linux are tested.
 
 The pre-commit hook runs ruff, typos, prettier, mypy, and pytest on every commit. Bypass with `git commit --no-verify` when you need to ship a WIP commit; CI still runs the same checks.
 
@@ -41,14 +41,14 @@ Four workflows under `.github/workflows/`. All third-party actions are SHA-pinne
 
 Runs on every push to `main` and every PR targeting `main`. Six parallel jobs:
 
-| Job         | What                                                                                  |
-|-------------|---------------------------------------------------------------------------------------|
-| `lint`      | `ruff check` and `ruff format --check`                                                |
-| `typecheck` | `mypy src/`                                                                           |
-| `test`      | `pytest` with coverage on a Python 3.10 / 3.11 / 3.12 / 3.13 matrix (`ubuntu-latest`) |
-| `typos`     | `typos` against the repo                                                              |
-| `prettier`  | `prettier --check .`                                                                  |
-| `build`     | `uv build`; uploads wheel + sdist as a `dist` artifact (14-day retention)             |
+| Job         | What                                                                                         |
+|-------------|----------------------------------------------------------------------------------------------|
+| `lint`      | `ruff check` and `ruff format --check`                                                       |
+| `typecheck` | `mypy src/`                                                                                  |
+| `test`      | `pytest` with coverage on a Python 3.10 / 3.11 / 3.12 / 3.13 / 3.14 matrix (`ubuntu-latest`) |
+| `typos`     | `typos` against the repo                                                                     |
+| `prettier`  | `prettier --check .`                                                                         |
+| `build`     | `uv build`; uploads wheel + sdist as a `dist` artifact (14-day retention)                    |
 
 Coverage is reported but not gated. The `build` job runs independently of the others, so PR reviewers can download a wheel even when other jobs fail.
 
