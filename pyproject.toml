@@ -1,6 +1,6 @@
 [project]
 name = "chunkhound-index-compactor"
-version = "0.2.0"
+version = "0.3.0"
 description = "Compact a bloated ChunkHound DuckDB index by rebuilding it into a fresh file"
 readme = "README.md"
 requires-python = ">=3.10,<3.14"

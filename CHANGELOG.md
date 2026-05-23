@@ -1,10 +1,15 @@
 # Changelog
 
-## [Unreleased]
+## [0.3.0] - 2026-05-23
 
 ### Added
 
 - `compact` now accepts a ChunkHound index directory as `SOURCE`. The directory resolves to its database file when exactly one `*.root.json`-paired DuckDB file is present, identified by the DuckDB header magic (`DUCK` at byte 8). Any other directory shape fails and lists the DuckDB files it found so you can pass the correct path.
+
+### Fixed
+
+- `click` is now declared as an explicit runtime dependency. `cli.DefaultCommandGroup` uses `click.Group`, `click.Context`, and `click.Command` directly but only resolved them transitively through `typer`, so a future `typer` dependency change could have silently broken the CLI import surface.
+- `_bundled_extension_path` raises a clear `RuntimeError` when `duckdb_extension_vss.__file__` is `None` (namespace packages, frozen imports) instead of an opaque `TypeError`.
 
 ## [0.2.0] - 2026-05-21
 
