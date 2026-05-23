@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from importlib.metadata import version as _pkg_version
 from pathlib import Path
 
 import duckdb
@@ -102,6 +103,12 @@ def test_cli_help_lists_commands() -> None:
     assert result.exit_code == 0
     assert "compact" in result.output
     assert "restore" in result.output
+
+
+def test_cli_version_flag_prints_installed_version() -> None:
+    result = runner.invoke(app, ["--version"])
+    assert result.exit_code == 0, result.output
+    assert _pkg_version("chunkhound-index-compactor") in result.output
 
 
 def test_cli_restore_help_lists_database() -> None:

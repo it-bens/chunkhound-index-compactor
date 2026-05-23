@@ -36,6 +36,9 @@ The source is opened read-only, but an active writer holds the file lock. Close 
 $ chunkhound-index-compactor --help
 Usage: chunkhound-index-compactor [OPTIONS] COMMAND [ARGS]...
 
+Options:
+  --version  Show the version and exit.
+
 Commands:
   compact  Compact a DuckDB database by rebuilding it into a fresh file. (default)
   restore  Rebuild HNSW vector indexes in a --skip-hnsw artifact, in place.
@@ -54,6 +57,7 @@ chunkhound-index-compactor restore DATABASE
 | `TARGET`          | Path for the compacted output [default: `<source>.compacted`]                     |
 | `--replace`       | After success, replace source with the compacted file (original → `<source>.bak`) |
 | `--skip-hnsw`     | Do not rebuild vector indexes; write a recipe table for later `restore`           |
+| `--version`       | Print the installed package version and exit (top-level flag)                     |
 
 When `SOURCE` is a directory, the tool resolves to the single ChunkHound index inside it, so you can pass the index directory directly. Any other directory shape fails, listing the DuckDB files it found (if any) so you can name the exact path.
 

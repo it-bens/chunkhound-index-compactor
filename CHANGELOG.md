@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- Top-level `--version` flag prints the installed package version and exits.
+
 ## [0.3.0] - 2026-05-23
 
 ### Added
