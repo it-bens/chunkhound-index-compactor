@@ -49,6 +49,7 @@ name = "chunkhound-index-compactor"
 version = "0.2.0"
 source = { editable = "." }
 dependencies = [
+    { name = "click" },
     { name = "duckdb" },
     { name = "duckdb-extension-vss" },
     { name = "typer" },
@@ -66,6 +67,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "click", specifier = ">=8.1" },
     { name = "duckdb", specifier = ">=1.4.0,<1.5.3.dev0" },
     { name = "duckdb-extension-vss", specifier = ">=1.5.2" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=2.1" },

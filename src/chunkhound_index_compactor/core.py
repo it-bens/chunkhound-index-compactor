@@ -460,7 +460,10 @@ def _bundled_extension_path(ext: str) -> Path:
     if ext == "vss":
         import duckdb_extension_vss
 
-        pkg_root = Path(duckdb_extension_vss.__file__).parent / "extensions"
+        module_file = duckdb_extension_vss.__file__
+        if module_file is None:
+            raise RuntimeError("cannot locate duckdb_extension_vss on disk")
+        pkg_root = Path(module_file).parent / "extensions"
         candidates = sorted(pkg_root.glob(f"v*/{ext}.duckdb_extension"))
         if not candidates:
             raise RuntimeError(f"no bundled {ext}.duckdb_extension found under {pkg_root}")
