@@ -1,0 +1,57 @@
+name: Test Action
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: test-action-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  action:
+    name: action (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          lfs: true
+
+      - name: compact (skip-hnsw, explicit target)
+        uses: ./
+        with:
+          index-path: tests/fixtures/shopware-cli-chunks.duckdb
+          target: skip-hnsw-out.duckdb
+          skip-hnsw: "true"
+
+      - name: assert skip-hnsw output is smaller than source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f skip-hnsw-out.duckdb
+          src=$(wc -c < tests/fixtures/shopware-cli-chunks.duckdb)
+          out=$(wc -c < skip-hnsw-out.duckdb)
+          if [ "$out" -ge "$src" ]; then
+            echo "::error::compacted output ($out) not smaller than source ($src)"
+            exit 1
+          fi
+
+      - name: compact (default target, full HNSW rebuild)
+        uses: ./
+        with:
+          index-path: tests/fixtures/shopware-cli-chunks.duckdb
+
+      - name: assert default target exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f tests/fixtures/shopware-cli-chunks.duckdb.compacted

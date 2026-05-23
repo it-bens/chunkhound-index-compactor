@@ -97,6 +97,21 @@ backup = replace_with_compacted(result.source, result.target)
 - `FileExistsError`: `<source>.bak` already exists (it refuses to overwrite an existing backup).
 - `OSError`: the move from `compacted` to `source` fails even via the cross-filesystem fallback (`shutil.move`).
 
+## 🤖 GitHub Action
+
+Run compaction in a workflow without installing uv or managing a Python toolchain. The action creates an isolated environment with the runner's preinstalled Python and runs `compact` in it.
+
+```yaml
+- uses: it-bens/chunkhound-index-compactor@<commit-sha> # vX.Y.Z
+  with:
+    index-path: .chunkhound
+    replace: "true"
+```
+
+The inputs `index-path`, `target`, `replace`, and `skip-hnsw` map to the `SOURCE`, `TARGET`, `--replace`, and `--skip-hnsw` arguments above; only `index-path` is required. Pin to a commit SHA and let Renovate or Dependabot bump it from the trailing version comment.
+
+The action wraps `compact` only; run `restore` separately (see CLI Usage above).
+
 ## 🚫 Not Supported
 
 The tool fails hard rather than silently dropping anything it cannot reproduce.

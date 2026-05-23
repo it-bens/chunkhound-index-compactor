@@ -1,0 +1,35 @@
+name: ChunkHound Index Compactor
+description: Compact a bloated ChunkHound DuckDB index by rebuilding it into a fresh file.
+author: it-bens
+branding:
+  icon: database
+  color: blue
+
+inputs:
+  index-path:
+    description: ChunkHound index directory or DuckDB file to compact.
+    required: true
+  target:
+    description: Output path for the compacted file. Defaults to <source>.compacted.
+    required: false
+    default: ""
+  replace:
+    description: Replace the source with the compacted file on success (original moved to <source>.bak).
+    required: false
+    default: "false"
+  skip-hnsw:
+    description: Skip rebuilding HNSW vector indexes; write a recipe table so `restore` can rebuild them later.
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        CIC_TOOL_SRC: ${{ github.action_path }}
+        CIC_INDEX_PATH: ${{ inputs.index-path }}
+        CIC_TARGET: ${{ inputs.target }}
+        CIC_REPLACE: ${{ inputs.replace }}
+        CIC_SKIP_HNSW: ${{ inputs.skip-hnsw }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/run-action.sh"

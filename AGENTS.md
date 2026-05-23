@@ -5,11 +5,13 @@
 ```
 chunkhound-index-compactor/
 ├── pyproject.toml
+├── action.yml                    # composite GitHub Action (wraps compact)
 ├── package.json                  # prettier dev dep (Node)
 ├── .prettierrc.json
 ├── .prettierignore
 ├── .typos.toml
-├── .github/workflows/            # ci.yml, rolling.yml, release.yml
+├── .github/workflows/            # ci.yml, rolling.yml, release.yml, test-action.yml
+├── scripts/run-action.sh         # action runner: venv + install + invoke CLI
 ├── README.md
 ├── AGENTS.md
 ├── CLAUDE.md                     # @AGENTS.md
@@ -58,6 +60,8 @@ chunkhound-index-compactor/
 | Directory source resolution (point at a ChunkHound index dir) | `core.py` → `_resolve_source()` / `_is_duckdb_file()` (architecture.md §ChunkHound compatibility) |
 | Atomic replace / backup suffix | `core.py` → `replace_with_compacted()` |
 | CLI args / commands / output strings | `cli.py` (`DefaultCommandGroup`, `compact`, `restore`) |
+| GitHub Action inputs / branding | `action.yml` (README §GitHub Action) |
+| Action runner: venv provision, install, CLI invoke | `scripts/run-action.sh` |
 | Byte formatting | `core.py` → `human_size()` |
 | New public export | `core.py` + `__init__.py` `__all__` |
 | Pipeline narrative, design rationale, refused-input reasoning | `docs/architecture.md` (not here) |

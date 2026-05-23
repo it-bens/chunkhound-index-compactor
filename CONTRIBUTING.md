@@ -35,7 +35,7 @@ Apply prettier fixes with `npm run format:fix`. CI runs the same commands.
 
 ## CI workflows
 
-Three workflows under `.github/workflows/`. All third-party actions are SHA-pinned with `# vX.Y.Z` comments so Renovate can update them later.
+Four workflows under `.github/workflows/`. All third-party actions are SHA-pinned with `# vX.Y.Z` comments so Renovate can update them later.
 
 ### ci.yml
 
@@ -51,6 +51,10 @@ Runs on every push to `main` and every PR targeting `main`. Six parallel jobs:
 | `build`     | `uv build`; uploads wheel + sdist as a `dist` artifact (14-day retention)             |
 
 Coverage is reported but not gated. The `build` job runs independently of the others, so PR reviewers can download a wheel even when other jobs fail.
+
+### test-action.yml
+
+Runs on every push to `main` and every PR targeting `main`. Exercises the composite action via `uses: ./` on an `ubuntu-latest` / `macos-latest` matrix, proving it works with each runner's preinstalled Python. Each job compacts the committed ChunkHound fixture twice: once with `skip-hnsw` (RAM-flat, asserts the output is smaller) and once with a full HNSW rebuild (asserts the default target is written).
 
 ### rolling.yml
 
