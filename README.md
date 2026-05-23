@@ -21,6 +21,13 @@ uvx chunkhound-index-compactor path/to/db.duckdb --skip-hnsw
 uvx chunkhound-index-compactor restore path/to/db.duckdb.compacted
 ```
 
+`uvx` fetches a throwaway copy each run. Since compaction is recurring maintenance, install it once with `uv tool install chunkhound-index-compactor`, then drop the `uvx` prefix and call `chunkhound-index-compactor` directly:
+
+```bash
+uv tool install chunkhound-index-compactor
+chunkhound-index-compactor path/to/db.duckdb --replace
+```
+
 The source is opened read-only, but an active writer holds the file lock. Close any process writing to the database before running.
 
 ## 🖥️ CLI Usage
