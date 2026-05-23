@@ -31,6 +31,57 @@ _BARE_IDENTIFIER_RE = re.compile(r'^(?:[A-Za-z_]\w*|"(?:[^"]|"")+")$')
 # can rebuild the stripped vector indexes. ChunkHound ignores the extra table.
 RECIPE_TABLE = "_compactor_hnsw_recipe"
 
+# DuckDB writes "DUCK" at byte offset 8 of a database's main header (an 8-byte
+# checksum precedes it). Identifies the real database among a ChunkHound index
+# directory's sidecars (`*.root.json`, `*.wal`) regardless of filename.
+_DUCKDB_MAGIC = b"DUCK"
+_ROOT_JSON_SUFFIX = ".root.json"
+
+
+def _is_duckdb_file(path: Path) -> bool:
+    if not path.is_file():
+        return False
+    try:
+        with path.open("rb") as fh:
+            header = fh.read(12)
+    except OSError:
+        # An unreadable sibling is simply not a candidate; surfacing it would
+        # abort the directory scan that builds the "did you mean" suggestion.
+        return False
+    return header[8:12] == _DUCKDB_MAGIC
+
+
+def _resolve_source(source: Path) -> Path:
+    """Resolve a directory `source` to the single DuckDB file it unambiguously holds.
+
+    A directory carrying exactly one ChunkHound index — a `<name>.root.json`
+    sidecar whose sibling `<name>` is a valid DuckDB file — resolves to that
+    file. Any other directory shape is refused, listing the DuckDB files found
+    (by magic bytes) as suggestions. Non-directory paths pass through unchanged.
+
+    Raises:
+        FileNotFoundError: `source` is a directory that does not resolve to a
+            single ChunkHound index.
+    """
+    if not source.is_dir():
+        return source
+
+    sidecar_dbs: list[Path] = []
+    for sidecar in source.glob(f"*{_ROOT_JSON_SUFFIX}"):
+        db = sidecar.with_name(sidecar.name[: -len(_ROOT_JSON_SUFFIX)])
+        if _is_duckdb_file(db):
+            sidecar_dbs.append(db)
+    if len(sidecar_dbs) == 1:
+        return sidecar_dbs[0]
+
+    candidates = sorted(p for p in source.iterdir() if _is_duckdb_file(p))
+    if candidates:
+        listing = "\n".join(f"  {p}" for p in candidates)
+        raise FileNotFoundError(
+            f"{source} is a directory; did you mean one of these DuckDB files:\n{listing}"
+        )
+    raise FileNotFoundError(f"no DuckDB database found in directory: {source}")
+
 
 def _referenced_tables(ddl: str) -> set[str]:
     """Return the set of table names referenced by FOREIGN KEY clauses in `ddl`."""

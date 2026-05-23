@@ -13,6 +13,9 @@ uvx chunkhound-index-compactor path/to/db.duckdb
 uvx chunkhound-index-compactor path/to/db.duckdb --replace
 # swaps in the compacted copy and keeps the original at path/to/db.duckdb.bak
 
+uvx chunkhound-index-compactor path/to/.chunkhound --replace
+# point at the index directory instead of the .db file inside it
+
 uvx chunkhound-index-compactor path/to/db.duckdb --skip-hnsw
 # skips rebuilding vector indexes (RAM-flat, smallest output); restore them later
 uvx chunkhound-index-compactor restore path/to/db.duckdb.compacted
@@ -40,10 +43,12 @@ chunkhound-index-compactor restore DATABASE
 
 | Argument / Option | Meaning                                                                           |
 |-------------------|-----------------------------------------------------------------------------------|
-| `SOURCE`          | Path to the existing DuckDB file (required)                                       |
+| `SOURCE`          | Path to a DuckDB file, or a ChunkHound index directory (required)                 |
 | `TARGET`          | Path for the compacted output [default: `<source>.compacted`]                     |
 | `--replace`       | After success, replace source with the compacted file (original → `<source>.bak`) |
 | `--skip-hnsw`     | Do not rebuild vector indexes; write a recipe table for later `restore`           |
+
+When `SOURCE` is a directory, the tool resolves to the single ChunkHound index inside it, so you can pass the index directory directly. Any other directory shape fails, listing the DuckDB files it found (if any) so you can name the exact path.
 
 With `--skip-hnsw`, the output has no vector index and falls back to a brute-force scan (correct, just unaccelerated) until you run `restore`. Rebuilding the HNSW is the memory-dominant step, so `--skip-hnsw` lets you compact on a small machine and `restore` on a RAM-capable one. See [docs/benchmarks.md](docs/benchmarks.md) for peak-RAM numbers and [docs/architecture.md §RAM cost asymmetry](docs/architecture.md#ram-cost-asymmetry) for why.
 

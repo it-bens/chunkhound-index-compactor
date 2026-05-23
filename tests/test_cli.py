@@ -14,6 +14,28 @@ from chunkhound_index_compactor.core import _bundled_extension_path
 runner = CliRunner()
 
 
+def _write_chunkhound_index(directory: Path, db_name: str) -> Path:
+    """Write a valid DuckDB file `db_name` plus its `<db_name>.root.json` sidecar."""
+    db = directory / db_name
+    conn = duckdb.connect(str(db))
+    try:
+        conn.execute("CREATE TABLE items AS SELECT range AS id FROM range(10)")
+        conn.execute("CHECKPOINT")
+    finally:
+        conn.close()
+    db.with_name(db.name + ".root.json").write_text('{"version": 1}')
+    return db
+
+
+@pytest.fixture
+def chunkhound_dir(tmp_path: Path) -> Path:
+    """A ChunkHound index directory: one chunks.db plus its .root.json sidecar."""
+    index_dir = tmp_path / ".chunkhound"
+    index_dir.mkdir()
+    _write_chunkhound_index(index_dir, "chunks.db")
+    return index_dir
+
+
 def _has_hnsw(database: Path) -> bool:
     conn = duckdb.connect(str(database), read_only=True)
     try:
@@ -220,3 +242,34 @@ def test_cli_replace_handles_os_error_cleanly(
     assert result.exit_code == 1
     assert "error:" in result.output
     assert "simulated cross-device replace failure" in result.output
+
+
+def test_cli_resolves_chunkhound_directory_to_inner_db(chunkhound_dir: Path) -> None:
+    result = runner.invoke(app, [str(chunkhound_dir)])
+    assert result.exit_code == 0, result.output
+    assert "resolved:" in result.output
+    db = chunkhound_dir / "chunks.db"
+    assert db.with_suffix(db.suffix + ".compacted").is_file()
+
+
+def test_cli_directory_without_duckdb_file_exits_nonzero(tmp_path: Path) -> None:
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    (empty / "notes.txt").write_text("not a database")
+    result = runner.invoke(app, [str(empty)])
+    assert result.exit_code == 1
+    assert "no DuckDB database found" in result.output
+
+
+def test_cli_directory_with_multiple_indexes_lists_candidates(tmp_path: Path) -> None:
+    # Two ChunkHound indexes in one directory: intention is not clear, so the
+    # tool must refuse rather than pick one, and list the DuckDB files it found.
+    index_dir = tmp_path / "multi"
+    index_dir.mkdir()
+    _write_chunkhound_index(index_dir, "a.db")
+    _write_chunkhound_index(index_dir, "b.db")
+    result = runner.invoke(app, [str(index_dir)])
+    assert result.exit_code == 1
+    assert "did you mean" in result.output
+    assert str(index_dir / "a.db") in result.output
+    assert str(index_dir / "b.db") in result.output

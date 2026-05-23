@@ -8,7 +8,13 @@ import click
 import typer
 from typer.core import TyperGroup
 
-from .core import compact_database, human_size, replace_with_compacted, restore_indexes
+from .core import (
+    _resolve_source,
+    compact_database,
+    human_size,
+    replace_with_compacted,
+    restore_indexes,
+)
 
 
 class DefaultCommandGroup(TyperGroup):
@@ -65,6 +71,15 @@ def compact(
     Close any process that holds a writer on the source before running. The
     source is attached read-only, but an active writer holds the file lock.
     """
+    original = source
+    try:
+        source = _resolve_source(source)
+    except FileNotFoundError as e:
+        typer.echo(f"error: {e}", err=True)
+        raise typer.Exit(code=1) from e
+    if source != original:
+        typer.echo(f"resolved:  {original} -> {source}")
+
     if not source.is_file():
         typer.echo(f"error: source database not found: {source}", err=True)
         raise typer.Exit(code=1)

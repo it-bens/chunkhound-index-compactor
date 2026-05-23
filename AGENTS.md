@@ -39,7 +39,7 @@ chunkhound-index-compactor/
 
 | Module | Public | Private |
 |---|---|---|
-| `core.py` | `compact_database`, `restore_indexes`, `replace_with_compacted`, `human_size`, `CompactionResult`, `RestoreResult` | `_topological_order`, `_referenced_tables`, `_reject_unsupported_objects`, `_capture_hnsw_recipes`, `_write_recipe_table`, `_load_bundled_extension`, `_bundled_extension_path`, `_escape_sql_literal`, `_quote_identifier`, `RECIPE_TABLE` constant, regexes `_HNSW_RE`, `_HNSW_COLUMN_RE`, `_FK_REFERENCES_RE`, `_GENERATED_COLUMN_RE`, `_BARE_IDENTIFIER_RE` |
+| `core.py` | `compact_database`, `restore_indexes`, `replace_with_compacted`, `human_size`, `CompactionResult`, `RestoreResult` | `_topological_order`, `_referenced_tables`, `_reject_unsupported_objects`, `_capture_hnsw_recipes`, `_write_recipe_table`, `_load_bundled_extension`, `_bundled_extension_path`, `_resolve_source`, `_is_duckdb_file`, `_escape_sql_literal`, `_quote_identifier`, `RECIPE_TABLE`/`_DUCKDB_MAGIC`/`_ROOT_JSON_SUFFIX` constants, regexes `_HNSW_RE`, `_HNSW_COLUMN_RE`, `_FK_REFERENCES_RE`, `_GENERATED_COLUMN_RE`, `_BARE_IDENTIFIER_RE` |
 | `cli.py` | `app` (Typer), `compact`, `restore` commands; `DefaultCommandGroup` routes bare args to `compact` | (none) |
 | `__main__.py` | `app()` invocation | (none) |
 | `__init__.py` | re-exports from `core` | (none) |
@@ -55,6 +55,7 @@ chunkhound-index-compactor/
 | DuckDB spill location | `core.py` → `compact_database()` (architecture.md §Compaction pipeline) |
 | HNSW metric recovery / recipe table schema | `core.py` → `_capture_hnsw_recipes()` / `_write_recipe_table()` / `RECIPE_TABLE` |
 | Index restore | `core.py` → `restore_indexes()` |
+| Directory source resolution (point at a ChunkHound index dir) | `core.py` → `_resolve_source()` / `_is_duckdb_file()` (architecture.md §ChunkHound compatibility) |
 | Atomic replace / backup suffix | `core.py` → `replace_with_compacted()` |
 | CLI args / commands / output strings | `cli.py` (`DefaultCommandGroup`, `compact`, `restore`) |
 | Byte formatting | `core.py` → `human_size()` |

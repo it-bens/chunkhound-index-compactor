@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- `compact` now accepts a ChunkHound index directory as `SOURCE`. The directory resolves to its database file when exactly one `*.root.json`-paired DuckDB file is present, identified by the DuckDB header magic (`DUCK` at byte 8). Any other directory shape fails and lists the DuckDB files it found so you can pass the correct path.
+
 ## [0.2.0] - 2026-05-21
 
 ### Fail-hard
