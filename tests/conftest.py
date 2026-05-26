@@ -42,9 +42,9 @@ def bloated_db(tmp_path: Path) -> Path:
 @pytest.fixture
 def hnsw_db(tmp_path: Path) -> Path:
     """A DuckDB file with an HNSW (vss) index — requires vss to compact."""
-    from chunkhound_index_compactor.core import _bundled_extension_path
+    from chunkhound_index_commons.vss import bundled_vss_path
 
-    vss_path = _bundled_extension_path("vss")
+    vss_path = bundled_vss_path()
     db_path = tmp_path / "hnsw.duckdb"
     conn = duckdb.connect(str(db_path))
     try:
@@ -65,12 +65,12 @@ def hnsw_db(tmp_path: Path) -> Path:
 @pytest.fixture
 def cosine_hnsw_db(tmp_path: Path) -> Path:
     """A DuckDB file whose HNSW index is built WITH (metric = 'cosine')."""
-    from chunkhound_index_compactor.core import _bundled_extension_path
+    from chunkhound_index_commons.vss import bundled_vss_path
 
     db_path = tmp_path / "cosine.duckdb"
     conn = duckdb.connect(str(db_path))
     try:
-        conn.execute(f"LOAD '{_bundled_extension_path('vss')}'")
+        conn.execute(f"LOAD '{bundled_vss_path()}'")
         conn.execute("SET hnsw_enable_experimental_persistence = true")
         conn.execute("CREATE TABLE vectors (id INTEGER, embedding FLOAT[4])")
         conn.execute(

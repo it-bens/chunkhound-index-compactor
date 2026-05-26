@@ -5,12 +5,11 @@ from pathlib import Path
 
 import duckdb
 import pytest
+from chunkhound_index_commons import vss as commons_vss
 from typer.testing import CliRunner
 
 from chunkhound_index_compactor import cli as cli_mod
-from chunkhound_index_compactor import core
 from chunkhound_index_compactor.cli import app
-from chunkhound_index_compactor.core import _bundled_extension_path
 
 runner = CliRunner()
 
@@ -40,7 +39,7 @@ def chunkhound_dir(tmp_path: Path) -> Path:
 def _has_hnsw(database: Path) -> bool:
     conn = duckdb.connect(str(database), read_only=True)
     try:
-        conn.execute(f"LOAD '{_bundled_extension_path('vss')}'")
+        conn.execute(f"LOAD '{commons_vss.bundled_vss_path()}'")
         rows = conn.execute(
             "SELECT count(*) FROM duckdb_indexes() WHERE sql ILIKE '%USING HNSW%'"
         ).fetchone()
@@ -157,12 +156,12 @@ def test_cli_compact_surfaces_missing_vss_extension_cleanly(
     hnsw_db: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # A missing bundled vss binary surfaces as RuntimeError from
-    # _bundled_extension_path. The CLI must turn that into a clean `error:`
+    # bundled_vss_path. The CLI must turn that into a clean `error:`
     # line, not a stack trace.
-    def fake(_ext: str) -> Path:
+    def fake() -> Path:
         raise RuntimeError("bundled vss missing for test")
 
-    monkeypatch.setattr(core, "_bundled_extension_path", fake)
+    monkeypatch.setattr(commons_vss, "bundled_vss_path", fake)
 
     target = tmp_path / "out.duckdb"
     result = runner.invoke(app, [str(hnsw_db), str(target)])
@@ -180,10 +179,10 @@ def test_cli_restore_surfaces_missing_vss_extension_cleanly(
     skip = runner.invoke(app, [str(hnsw_db), str(target), "--skip-hnsw"])
     assert skip.exit_code == 0, skip.output
 
-    def fake(_ext: str) -> Path:
+    def fake() -> Path:
         raise RuntimeError("bundled vss missing for restore test")
 
-    monkeypatch.setattr(core, "_bundled_extension_path", fake)
+    monkeypatch.setattr(commons_vss, "bundled_vss_path", fake)
 
     result = runner.invoke(app, ["restore", str(target)])
     assert result.exit_code == 1

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Shared DuckDB / ChunkHound index primitives (directory resolution, schema inspection, SQL-interpolation safety, vss/HNSW handling) now come from the `chunkhound-index-commons` library instead of living in `core.py`. The explicit `duckdb` and `duckdb-extension-vss` dependencies are dropped; commons owns those floors and the compactor inherits them transitively. CLI and library behavior are unchanged.
+
 ## [0.5.0] - 2026-05-24
 
 ### Added
