@@ -2,9 +2,7 @@
 
 ## Why a custom rebuild instead of `COPY FROM DATABASE`
 
-DuckDB's single-file format does not reclaim disk space after deletes or drops, and `VACUUM` is a no-op for size reclamation. The obvious workaround is to `ATTACH` the source and `COPY FROM DATABASE` into a fresh target. That path commits child rows before their foreign-key parents and aborts with a non-deterministic FK violation on FK-bearing [ChunkHound](https://github.com/chunkhound/chunkhound) indexes at scale ([duckdb/duckdb#16785](https://github.com/duckdb/duckdb/issues/16785)). The failing key differs between runs on the same source; the data is referentially clean. It is an insertion-order race, and DuckDB exposes no setting that disables FK enforcement.
-
-`chunkhound-index-compactor` rebuilds the database table-by-table in foreign-key-topological order instead, which sidesteps the race.
+Why `COPY FROM DATABASE` loses to a table-by-table rebuild in foreign-key-topological order lives in [commons architecture.md §Why these primitives](https://github.com/it-bens/chunkhound-index-commons/blob/main/docs/architecture.md#why-these-primitives). The compactor composes that primitive; this section covers only what the rebuild reclaims and why a ChunkHound index bloats in the first place.
 
 What gets reclaimed is not free space. `pragma_database_size` on a real ChunkHound index reports almost no free blocks: the motivating workload showed 4 769 560 used vs 173 free on a 1.1 TiB file (see [benchmarks.md](benchmarks.md)). The bloat is *orphaned used blocks*: old HNSW serializations left behind by ChunkHound's drop-and-recreate index churn on write batches that meet its size threshold (50 rows by default). The `vss` extension re-serializes the whole HNSW on every CHECKPOINT, so each such batch leaves the prior serialization orphaned. The catalog counts them as used because no live object references them; only a fresh-file rewrite drops them, because the rewrite copies live catalog objects only.
 
@@ -33,7 +31,7 @@ When you invoke `compact_database(source, target, *, skip_hnsw=False)`:
 
 On any failure after the target file is attached, the partial target is unlinked (along with the `<target>.wal` write-ahead log if a CHECKPOINT step left one behind) and the original exception re-raises. A half-written multi-GB file is worse than nothing.
 
-SQL literals are built by string interpolation because DuckDB DDL does not accept parameter binding. Single quotes are doubled via `_escape_sql_literal()`; table and index names are wrapped via `_quote_identifier()`, which doubles any embedded `"`.
+SQL literals are built by string interpolation because DuckDB DDL does not accept parameter binding. Single quotes are doubled via `commons.sql.escape_sql_literal`; table and index names are wrapped via `commons.sql.quote_identifier`, which doubles any embedded `"`.
 
 ## RAM cost asymmetry
 
@@ -62,33 +60,22 @@ The table name is exposed as the `RECIPE_TABLE` constant in `core.py`. ChunkHoun
 
 ## Bundled `vss` extension
 
-DuckDB cannot create or read an HNSW index without the `vss` extension loaded. To keep the tool offline-safe and avoid the network round-trip of `INSTALL`, this package depends on the community-built [`duckdb-extension-vss`](https://pypi.org/project/duckdb-extension-vss/) wheel, which ships the `vss.duckdb_extension` binary as part of its payload. The binary is `LOAD`ed directly from disk via `_bundled_extension_path()` and `_load_bundled_extension()`; no `INSTALL`, no network. It is loaded only when the source actually contains an HNSW index.
-
-| Source index type | Extension | Bundled by                                    |
-|-------------------|-----------|-----------------------------------------------|
-| `HNSW`            | `vss`     | `duckdb-extension-vss` (community-maintained) |
-
-Only `metric` is recovered because it is correctness-affecting: a metric mismatch leaves the index dead and queries fall back to brute force. The other HNSW knobs (`M`, `M0`, `ef_construction`, `ef_search`) are not surfaced by any pragma, which is why they cannot be preserved.
+The `vss` bundling, the disk-path load that keeps the tool offline-safe, and the metric-only recovery rationale live in [commons architecture.md §Bundled vss extension](https://github.com/it-bens/chunkhound-index-commons/blob/main/docs/architecture.md#bundled-vss-extension) and [§HNSW metric recovery](https://github.com/it-bens/chunkhound-index-commons/blob/main/docs/architecture.md#hnsw-metric-recovery). The pipeline loads it via `commons.vss.load_bundled_vss`, only when the source contains an HNSW index.
 
 ## ChunkHound compatibility
 
-The tool is structurally generic, but it was built against ChunkHound and a few details of ChunkHound's behavior shape the design:
-
-- **ChunkHound writes HNSW with `metric = 'cosine'`.** The catalog DDL strips the `WITH (...)` clause, so a metric-blind rebuild would silently reset the index to the `vss` default `l2sq`. ChunkHound's cosine-distance queries would no longer hit the index and would run brute-force against the table. The metric-via-pragma recovery is the regression guard; `test_rebuild_preserves_hnsw_metric` enforces it.
-- **ChunkHound rebuilds HNSW only on the write path.** Its read path runs vector-distance queries with no index-existence check and no `CREATE INDEX` branch. A `--skip-hnsw` artifact opened by ChunkHound brute-forces every semantic query forever until something rebuilds the index. That is why `restore` exists as a separate command: ChunkHound itself will not lazy-rebuild.
-- **HNSW non-determinism is already part of ChunkHound's normal operation.** ChunkHound drops and recreates the HNSW on write batches that meet its size threshold (`insert_embeddings_batch`, default 50 rows), so the live index already changes shape across runs even without compaction. The rebuild reproduces that property; it does not introduce a new one.
-- **ChunkHound stores its index as a directory.** It writes `chunks.db` beside a `chunks.db.root.json` sidecar. `_resolve_source` lets you pass that directory: it resolves only when exactly one `*.root.json` sidecar names a sibling carrying the DuckDB header magic (`DUCK` at byte 8), identifying the database by that magic rather than by file extension. A directory with no such index, or with more than one, raises `FileNotFoundError` and lists the DuckDB files it found rather than guessing which one was meant.
+The four ChunkHound behaviors that shape the design — cosine-metric writes, write-path-only HNSW rebuilds, per-batch HNSW non-determinism, and the directory-plus-`root.json` layout — live in [commons architecture.md §ChunkHound compatibility](https://github.com/it-bens/chunkhound-index-commons/blob/main/docs/architecture.md#chunkhound-compatibility). Two are load-bearing for the compactor's own surface: `restore` is a separate command because ChunkHound never lazy-rebuilds a stripped index (see §The `_compactor_hnsw_recipe` table), and `compact` accepts a ChunkHound directory because `commons.resolve.resolve_chunkhound_source` resolves it to the inner DuckDB file.
 
 ## Not supported (and why)
 
-These cases the code refuses with `ValueError` before `ATTACH dst`, so the target file is never created. The first six are caught by the front-gate helpers `_reject_unsupported_objects` and `_capture_hnsw_recipes`; the seventh by `_topological_order`.
+These cases the rebuild refuses with `ValueError` before `ATTACH dst`, so the target file is never created. All seven are commons-enforced (`reject_unsupported_objects`, `topological_order`, and `parse_hnsw_column` paired with `is_bare_identifier`); per-case reasoning and fix shapes live in [commons out-of-scope.md](https://github.com/it-bens/chunkhound-index-commons/blob/main/docs/out-of-scope.md).
 
-- Non-`main` schemas. (see out-of-scope.md §Non-`main` schemas)
-- Views. (see out-of-scope.md §Views)
-- User-defined types. (see out-of-scope.md §User-defined types)
-- Generated columns. (see out-of-scope.md §Generated columns)
-- Self-referential foreign keys. (see out-of-scope.md §Self-referential foreign keys)
-- Expression HNSW keys. (see out-of-scope.md §Expression HNSW keys)
-- Foreign-key cycles. (see out-of-scope.md §Foreign-key cycles)
+- Non-`main` schemas.
+- Views.
+- User-defined types.
+- Generated columns.
+- Self-referential foreign keys.
+- Expression HNSW keys.
+- Foreign-key cycles.
 
-For metadata the rebuild drops rather than refuses, latent code edges, rejected alternative approaches, and per-case fix shapes, see [out-of-scope.md](out-of-scope.md).
+For metadata the rebuild drops, latent code edges, and rejected approaches — compactor-specific in [out-of-scope.md](out-of-scope.md), substrate-level in [commons out-of-scope.md](https://github.com/it-bens/chunkhound-index-commons/blob/main/docs/out-of-scope.md).

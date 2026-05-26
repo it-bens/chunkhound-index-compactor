@@ -7,10 +7,10 @@ from pathlib import Path
 
 import click
 import typer
+from chunkhound_index_commons.resolve import resolve_chunkhound_source
 from typer.core import TyperGroup
 
 from .core import (
-    _resolve_source,
     compact_database,
     human_size,
     replace_with_compacted,
@@ -93,7 +93,7 @@ def compact(
     """
     original = source
     try:
-        source = _resolve_source(source)
+        source = resolve_chunkhound_source(source)
     except FileNotFoundError as e:
         typer.echo(f"error: {e}", err=True)
         raise typer.Exit(code=1) from e

@@ -21,9 +21,8 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
+    "chunkhound-index-commons>=0.1,<0.2",
     "click>=8.1",
-    "duckdb>=1.4.0,<1.5.3.dev0",
-    "duckdb-extension-vss>=1.5.2",
     "typer>=0.25",
 ]
 

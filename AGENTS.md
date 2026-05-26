@@ -19,9 +19,9 @@ chunkhound-index-compactor/
 ├── CHANGELOG.md
 ├── LICENSE
 ├── docs/
-│   ├── architecture.md           # pipeline, RAM asymmetry, recipe table, vss bundling, ChunkHound compat, refused inputs
+│   ├── architecture.md           # pipeline, RAM asymmetry, recipe table, refused-input enumeration (substrate rationale in commons)
 │   ├── benchmarks.md             # empirical baseline (1.25 TB ChunkHound index + fixture cross-check)
-│   └── out-of-scope.md           # refused shapes, dropped metadata, latent edges, rejected approaches + fix shapes
+│   └── out-of-scope.md           # compactor pipeline-state + CLI-UX decisions (substrate catalog in commons)
 ├── src/chunkhound_index_compactor/
 │   ├── __init__.py               # public API re-exports
 │   ├── __main__.py               # python -m entry
@@ -41,23 +41,26 @@ chunkhound-index-compactor/
 
 | Module | Public | Private |
 |---|---|---|
-| `core.py` | `compact_database`, `restore_indexes`, `replace_with_compacted`, `human_size`, `CompactionResult`, `RestoreResult` | `_topological_order`, `_referenced_tables`, `_reject_unsupported_objects`, `_capture_hnsw_recipes`, `_write_recipe_table`, `_load_bundled_extension`, `_bundled_extension_path`, `_resolve_source`, `_is_duckdb_file`, `_escape_sql_literal`, `_quote_identifier`, `RECIPE_TABLE`/`_DUCKDB_MAGIC`/`_ROOT_JSON_SUFFIX` constants, regexes `_HNSW_RE`, `_HNSW_COLUMN_RE`, `_FK_REFERENCES_RE`, `_GENERATED_COLUMN_RE`, `_BARE_IDENTIFIER_RE` |
+| `core.py` | `compact_database`, `restore_indexes`, `replace_with_compacted`, `human_size`, `CompactionResult`, `RestoreResult` | `_capture_hnsw_recipes`, `_write_recipe_table`, `RECIPE_TABLE` constant |
 | `cli.py` | `app` (Typer), `compact`, `restore` commands; `DefaultCommandGroup` routes bare args to `compact` | (none) |
 | `__main__.py` | `app()` invocation | (none) |
 | `__init__.py` | re-exports from `core` | (none) |
+
+Resolution, schema inspection, SQL-interpolation safety, and vss/HNSW primitives are imported from `chunkhound_index_commons` (`resolve`, `schema`, `sql`, `vss`) — `resolve_chunkhound_source`, `reject_unsupported_objects`, `topological_order`, `escape_sql_literal`, `quote_identifier`, `is_bare_identifier`, `is_hnsw_index_ddl`, `parse_hnsw_column`, `load_bundled_vss`, `capture_hnsw_metrics`, `recreate_hnsw_index`. They are not defined in `core.py`.
 
 ## When to modify
 
 | Task | File / symbol |
 |---|---|
 | Rebuild SQL sequence | `core.py` → `compact_database()` |
-| FK ordering | `core.py` → `_topological_order()` / `_referenced_tables()` |
-| Front-gate refusal of unsupported source shapes | `core.py` → `_reject_unsupported_objects()` (schemas, views, user-defined types, generated columns, self-ref FKs) and `_capture_hnsw_recipes()` (expression HNSW columns) |
+| Shared DuckDB/ChunkHound primitives (resolve, schema, sql, vss) | `chunkhound-index-commons` package (separate repo) |
+| FK ordering | `chunkhound_index_commons.schema` → `topological_order()` / `referenced_tables()` |
+| Front-gate refusal of unsupported source shapes | `chunkhound_index_commons.schema.reject_unsupported_objects()` (schemas, views, user-defined types, generated columns, self-ref FKs); expression-HNSW refusal in `core.py` → `_capture_hnsw_recipes()` via `commons.sql.is_bare_identifier` |
 | Cross-filesystem replace fallback | `core.py` → `replace_with_compacted()` (`shutil.move` on EXDEV) |
 | DuckDB spill location | `core.py` → `compact_database()` (architecture.md §Compaction pipeline) |
-| HNSW metric recovery / recipe table schema | `core.py` → `_capture_hnsw_recipes()` / `_write_recipe_table()` / `RECIPE_TABLE` |
+| HNSW metric recovery / recipe table schema | metric via `commons.vss.capture_hnsw_metrics`; recipe shape in `core.py` → `_capture_hnsw_recipes()` / `_write_recipe_table()` / `RECIPE_TABLE` |
 | Index restore | `core.py` → `restore_indexes()` |
-| Directory source resolution (point at a ChunkHound index dir) | `core.py` → `_resolve_source()` / `_is_duckdb_file()` (architecture.md §ChunkHound compatibility) |
+| Directory source resolution (point at a ChunkHound index dir) | `chunkhound_index_commons.resolve.resolve_chunkhound_source()`, called from `cli.py` (architecture.md §ChunkHound compatibility) |
 | Atomic replace / backup suffix | `core.py` → `replace_with_compacted()` |
 | CLI args / commands / output strings | `cli.py` (`DefaultCommandGroup`, `compact`, `restore`) |
 | GitHub Action inputs / branding | `action.yml` (README §GitHub Action) |
@@ -70,8 +73,8 @@ chunkhound-index-compactor/
 
 ## Invariants enforced by code
 
-- HNSW metric must survive rebuild. Catalog DDL strips `WITH (...)`, so the metric is read from `pragma_hnsw_index_info()` in `_capture_hnsw_recipes`. (architecture.md §ChunkHound compatibility)
-- SQL DDL is built by string interpolation (no parameter binding); escape literals via `_escape_sql_literal`, wrap table and index names via `_quote_identifier`. (architecture.md §Compaction pipeline)
+- HNSW metric must survive rebuild. Catalog DDL strips `WITH (...)`, so the metric is read from `pragma_hnsw_index_info()` via `commons.vss.capture_hnsw_metrics`, composed in `_capture_hnsw_recipes`. (architecture.md §ChunkHound compatibility)
+- SQL DDL is built by string interpolation (no parameter binding); escape literals via `commons.sql.escape_sql_literal`, wrap table and index names via `commons.sql.quote_identifier`. (architecture.md §Compaction pipeline)
 - Public-API exceptions (`ValueError`, `FileNotFoundError`, `FileExistsError`, `RuntimeError`, `OSError`) enumerated at README §Library Usage; refused inputs reasoned at architecture.md §Not supported (and why).
 - Front-gate refusals run before `ATTACH dst`; on any failure after `ATTACH dst`, the partial target and its `.wal` are unlinked. (architecture.md §Compaction pipeline)
 - Reading the source never loads its HNSW into RAM; building the destination HNSW dominates peak RAM. `--skip-hnsw` is the small-RAM unlock; `restore` is a separate-machine step. (architecture.md §RAM cost asymmetry)
@@ -82,4 +85,4 @@ chunkhound-index-compactor/
 
 ## Runtime deps
 
-- Authoritative constraints at `pyproject.toml`. Load-bearing context: `duckdb` range matches `chunkhound` to stay file-format-compatible; `duckdb-extension-vss>=1.5.2` pins `duckdb==1.5.2` transitively. Python `>=3.10,<3.15`.
+- Authoritative constraints at `pyproject.toml`. Load-bearing context: the `duckdb` / `duckdb-extension-vss` floors are owned by `chunkhound-index-commons` and inherited transitively (the compactor must not redeclare them); the compactor declares `chunkhound-index-commons>=0.1,<0.2`, `click`, `typer`. Python `>=3.10,<3.15`.

@@ -4,56 +4,22 @@ from pathlib import Path
 
 import duckdb
 import pytest
+from chunkhound_index_commons.vss import bundled_vss_path
 
 from chunkhound_index_compactor import compact_database, restore_indexes
-from chunkhound_index_compactor.core import (
-    _bundled_extension_path,
-    _capture_hnsw_recipes,
-    _topological_order,
-)
+from chunkhound_index_compactor.core import _capture_hnsw_recipes
 
 
 def _hnsw_index_names(database: Path) -> list[str]:
     conn = duckdb.connect(str(database), read_only=True)
     try:
-        conn.execute(f"LOAD '{_bundled_extension_path('vss')}'")
+        conn.execute(f"LOAD '{bundled_vss_path()}'")
         rows = conn.execute(
             "SELECT index_name FROM duckdb_indexes() WHERE sql ILIKE '%USING HNSW%'"
         ).fetchall()
     finally:
         conn.close()
     return [r[0] for r in rows]
-
-
-def test_topological_order_sorts_parent_before_child() -> None:
-    # Child table sorts alphabetically before its parent.
-    ddls = {
-        "cats": (
-            "CREATE TABLE cats(id INTEGER PRIMARY KEY, owner_id INTEGER, "
-            "FOREIGN KEY (owner_id) REFERENCES owners(id))"
-        ),
-        "owners": "CREATE TABLE owners(id INTEGER PRIMARY KEY)",
-    }
-    order = _topological_order(ddls)
-    assert order.index("owners") < order.index("cats")
-
-
-def test_topological_order_keeps_all_independent_tables() -> None:
-    ddls = {
-        "a": "CREATE TABLE a(id INTEGER)",
-        "b": "CREATE TABLE b(id INTEGER)",
-        "c": "CREATE TABLE c(id INTEGER)",
-    }
-    assert sorted(_topological_order(ddls)) == ["a", "b", "c"]
-
-
-def test_topological_order_rejects_cycle() -> None:
-    ddls = {
-        "x": "CREATE TABLE x(id INTEGER, y_id INTEGER, FOREIGN KEY (y_id) REFERENCES y(id))",
-        "y": "CREATE TABLE y(id INTEGER, x_id INTEGER, FOREIGN KEY (x_id) REFERENCES x(id))",
-    }
-    with pytest.raises(ValueError, match="cyclic"):
-        _topological_order(ddls)
 
 
 def test_skip_hnsw_drops_live_index(hnsw_db: Path, tmp_path: Path) -> None:
@@ -93,7 +59,7 @@ def test_capture_hnsw_recipes_rejects_unparseable_ddl() -> None:
 def _hnsw_metrics(database: Path) -> dict[str, str]:
     conn = duckdb.connect(str(database), read_only=True)
     try:
-        conn.execute(f"LOAD '{_bundled_extension_path('vss')}'")
+        conn.execute(f"LOAD '{bundled_vss_path()}'")
         return dict(
             conn.execute("SELECT index_name, metric FROM pragma_hnsw_index_info()").fetchall()
         )
@@ -128,7 +94,7 @@ def two_hnsw_db(tmp_path: Path) -> Path:
     db_path = tmp_path / "two_hnsw.duckdb"
     conn = duckdb.connect(str(db_path))
     try:
-        conn.execute(f"LOAD '{_bundled_extension_path('vss')}'")
+        conn.execute(f"LOAD '{bundled_vss_path()}'")
         conn.execute("SET hnsw_enable_experimental_persistence = true")
         conn.execute("CREATE TABLE e1024 (id INTEGER, embedding FLOAT[1024])")
         conn.execute("CREATE TABLE e1536 (id INTEGER, embedding FLOAT[1536])")
@@ -319,12 +285,12 @@ def test_compact_rejects_self_referential_fk(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("skip_hnsw", [False, True])
 def test_compact_rejects_expression_hnsw_column(tmp_path: Path, skip_hnsw: bool) -> None:
-    # _HNSW_COLUMN_RE truncates an expression key at the first inner ')'.
+    # parse_hnsw_column truncates an expression key at the first inner ')'.
     # Without refusing, --skip-hnsw records a malformed column string and
     # `restore` later crashes on the unbalanced DDL. The gate fires in
     # _capture_hnsw_recipes, before the skip_hnsw branch, so both paths refuse.
     src = tmp_path / "expr-hnsw.duckdb"
-    vss_path = _bundled_extension_path("vss")
+    vss_path = bundled_vss_path()
     conn = duckdb.connect(str(src))
     try:
         conn.execute(f"LOAD '{vss_path}'")
