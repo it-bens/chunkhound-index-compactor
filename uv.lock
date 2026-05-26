@@ -75,7 +75,7 @@ wheels = [
 
 [[package]]
 name = "chunkhound-index-compactor"
-version = "0.5.0"
+version = "0.6.0"
 source = { editable = "." }
 dependencies = [
     { name = "chunkhound-index-commons" },
